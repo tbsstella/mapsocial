@@ -15,15 +15,15 @@ export async function POST(req: NextRequest) {
     refCode?: string;
   };
   if (!body.message || !body.signature) {
-    return NextResponse.json({ error: "缺少签名数据", code: "MISSING_FIELDS" }, { status: 400 });
+    return NextResponse.json({ error: "Missing required fields", code: "MISSING_FIELDS" }, { status: 400 });
   }
 
   const parsed = parseSiweMessage(body.message);
   if (!parsed.address || !parsed.nonce) {
-    return NextResponse.json({ error: "SIWE 消息无效", code: "SIWE_INVALID" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid SIWE message", code: "SIWE_INVALID" }, { status: 400 });
   }
   if (!consumeNonce(parsed.nonce)) {
-    return NextResponse.json({ error: "Nonce 无效或已过期", code: "NONCE_INVALID" }, { status: 400 });
+    return NextResponse.json({ error: "Nonce invalid or expired", code: "NONCE_INVALID" }, { status: 400 });
   }
 
   let recovered: string;
@@ -33,10 +33,10 @@ export async function POST(req: NextRequest) {
       signature: body.signature,
     });
   } catch {
-    return NextResponse.json({ error: "签名验证失败", code: "SIG_INVALID" }, { status: 401 });
+    return NextResponse.json({ error: "Signature verification failed", code: "SIG_INVALID" }, { status: 401 });
   }
   if (recovered.toLowerCase() !== parsed.address.toLowerCase()) {
-    return NextResponse.json({ error: "签名与地址不匹配", code: "SIG_MISMATCH" }, { status: 401 });
+    return NextResponse.json({ error: "Signature does not match address", code: "SIG_MISMATCH" }, { status: 401 });
   }
 
   const address = parsed.address.toLowerCase();
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!user) {
-    return NextResponse.json({ error: "创建用户失败" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
   }
 
   await createSession(user.id);

@@ -23,18 +23,18 @@ function serialize(cfg: ReturnType<typeof getBotConfig>) {
 export async function GET() {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
   if (me.account_type !== "bot")
-    return NextResponse.json({ error: "仅 Bot 账号", code: "BOT_ONLY" }, { status: 403 });
+    return NextResponse.json({ error: "Bot accounts only", code: "BOT_ONLY" }, { status: 403 });
   return NextResponse.json(serialize(getBotConfig(me.id)));
 }
 
 export async function PUT(req: NextRequest) {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
   if (me.account_type !== "bot")
-    return NextResponse.json({ error: "仅 Bot 账号", code: "BOT_ONLY" }, { status: 403 });
+    return NextResponse.json({ error: "Bot accounts only", code: "BOT_ONLY" }, { status: 403 });
 
   const b = (await req.json()) as Record<string, unknown>;
   const bad = (msg: string) =>
@@ -45,9 +45,9 @@ export async function PUT(req: NextRequest) {
     try {
       const u = new URL(apiUrl);
       if (u.protocol !== "https:" && u.hostname !== "localhost" && u.hostname !== "127.0.0.1")
-        return bad("API 地址必须是 https（本地调试除外）");
+        return bad("API URL must be https (localhost excepted)");
     } catch {
-      return bad("API 地址无效");
+      return bad("Invalid API URL");
     }
   }
 
@@ -55,7 +55,8 @@ export async function PUT(req: NextRequest) {
   const systemPrompt = String(b.systemPrompt ?? "").slice(0, 2000);
 
   const enabled = b.enabled === true;
-  if (enabled && (!apiUrl || !model)) return bad("启用自动应答需要填写 API 地址和模型");
+  if (enabled && (!apiUrl || !model))
+    return bad("Auto-reply requires an API URL and a model");
 
   // Write-only API key: empty string keeps the stored one.
   const existing = getBotConfig(me.id);

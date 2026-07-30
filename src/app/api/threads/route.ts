@@ -7,7 +7,7 @@ import { maybeBotReply } from "@/lib/botreply";
 export async function GET() {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const rows = db
     .prepare(
@@ -69,10 +69,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
   if (me.account_type === "bot")
     return NextResponse.json(
-      { error: "机器人账号不允许主动私信", code: "BOT_NO_INIT" },
+      { error: "Bot accounts can't start DMs", code: "BOT_NO_INIT" },
       { status: 403 }
     );
 
@@ -80,20 +80,20 @@ export async function POST(req: NextRequest) {
   const text = String(b.body ?? "").trim().slice(0, 2000);
   if (!b.toAddress || !text)
     return NextResponse.json(
-      { error: "缺少收件人或内容", code: "MISSING_FIELDS" },
+      { error: "Missing required fields", code: "MISSING_FIELDS" },
       { status: 400 }
     );
 
   const target = getUserByAddress(b.toAddress);
   const targetProfile = target ? getProfile(target.id) : undefined;
   if (!target || !targetProfile)
-    return NextResponse.json({ error: "用户不存在", code: "USER_NOT_FOUND" }, { status: 404 });
+    return NextResponse.json({ error: "User not found", code: "USER_NOT_FOUND" }, { status: 404 });
   if (target.id === me.id)
-    return NextResponse.json({ error: "不能给自己发私信", code: "SELF_ACTION" }, { status: 400 });
+    return NextResponse.json({ error: "You can't do that to yourself", code: "SELF_ACTION" }, { status: 400 });
   if (targetProfile.messaging_allowed !== 1)
-    return NextResponse.json({ error: "对方未开放私信", code: "DM_CLOSED" }, { status: 403 });
+    return NextResponse.json({ error: "This user has DMs closed", code: "DM_CLOSED" }, { status: 403 });
   if (isBlocked(me.id, target.id) || isBlocked(target.id, me.id))
-    return NextResponse.json({ error: "无法向该用户发送私信", code: "BLOCKED" }, { status: 403 });
+    return NextResponse.json({ error: "You can't message this user", code: "BLOCKED" }, { status: 403 });
 
   const [a, bId] = me.id < target.id ? [me.id, target.id] : [target.id, me.id];
   const existing = db
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     .get(a, bId) as { id: number } | undefined;
   if (existing)
     return NextResponse.json(
-      { error: "会话已存在", code: "THREAD_EXISTS", threadId: existing.id },
+      { error: "Conversation already exists", code: "THREAD_EXISTS", threadId: existing.id },
       { status: 409 }
     );
 
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
   if (quota.remaining <= 0)
     return NextResponse.json(
       {
-        error: "今日主动私信名额已用完。提高可信度或邀请好友可增加名额，名额每日重置。",
+        error: "You've used all approach slots for today. Raise your Vibes or invite friends for more. Slots reset daily.",
         code: "QUOTA_EXCEEDED",
       },
       { status: 429 }

@@ -55,9 +55,9 @@ interface I18nCtx {
 }
 
 const Ctx = createContext<I18nCtx>({
-  lang: "zh",
+  lang: "en",
   setLang: () => {},
-  t: (k) => zh[k] ?? k,
+  t: (k) => en[k] ?? k,
 });
 
 // Language preference lives in localStorage; useSyncExternalStore keeps every
@@ -80,7 +80,7 @@ function getLangSnapshot(): Lang {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const lang = useSyncExternalStore(subscribeLang, getLangSnapshot, () => "zh" as Lang);
+  const lang = useSyncExternalStore(subscribeLang, getLangSnapshot, () => "en" as Lang);
 
   const setLang = useCallback((l: Lang) => {
     localStorage.setItem("lang", l);
@@ -110,6 +110,6 @@ export function apiErrorText(
   data: { code?: string; error?: string } | null | undefined,
   t: I18nCtx["t"]
 ): string {
-  if (data?.code && `err.${data.code}` in zh) return t(`err.${data.code}` as TKey);
+  if (data?.code && `err.${data.code}` in en) return t(`err.${data.code}` as TKey);
   return data?.error ?? t("err.GENERIC");
 }

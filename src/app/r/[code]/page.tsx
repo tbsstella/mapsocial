@@ -18,7 +18,7 @@ export default function ReferralLanding({
 
   return (
     <div className="flex h-dvh items-center justify-center text-sm text-slate-400">
-      Opening invite… / 正在打开邀请…
+      Opening invite…
     </div>
   );
 }

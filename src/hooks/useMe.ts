@@ -51,7 +51,7 @@ export function useMe() {
     queryKey: ["me"],
     queryFn: async () => {
       const res = await fetch("/api/me");
-      if (!res.ok) throw new Error("加载失败");
+      if (!res.ok) throw new Error("Failed to load");
       return res.json();
     },
     staleTime: 30_000,

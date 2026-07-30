@@ -139,7 +139,7 @@ function buildEventEl(ev: MapEvent): HTMLDivElement {
 function buildClusterEl(c: Cluster): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "map-marker";
-  el.title = `${c.users.length} 位用户，点击放大`;
+  el.title = `${c.users.length} users, click to zoom in`;
   const preview = c.users
     .slice(0, 3)
     .map((u) => avatarById(u.avatar).emoji)

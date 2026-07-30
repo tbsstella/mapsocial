@@ -84,110 +84,110 @@ const run = async () => {
   console.log(`Smoke test against ${BASE}\n`);
   const suffix = Date.now().toString(36).slice(-5);
 
-  console.log("1. 用户 A：签名登录 + 建档");
+  console.log("1. User A: SIWE login + create profile");
   const alice = makeClient();
   const a = await login(alice, "human");
-  check("SIWE 登录成功", a.status === 200 && a.body.ok, JSON.stringify(a.body));
+  check("SIWE login succeeds", a.status === 200 && a.body.ok, JSON.stringify(a.body));
   const aProfile = await setProfile(alice, `alice_${suffix}`);
-  check("建立 Profile", aProfile.status === 200, JSON.stringify(aProfile.body));
+  check("Create profile", aProfile.status === 200, JSON.stringify(aProfile.body));
   const aMe = (await alice.req("/api/me")).body;
-  check("me 返回 profile + quota", !!aMe.profile && !!aMe.quota);
-  check("拿到 referral code", typeof aMe.user.referralCode === "string");
-  console.log(`     A 可信度=${aMe.user.trustScore} 基础名额=${aMe.quota.base}`);
+  check("me returns profile + quota", !!aMe.profile && !!aMe.quota);
+  check("Gets a referral code", typeof aMe.user.referralCode === "string");
+  console.log(`     A trustScore=${aMe.user.trustScore} baseQuota=${aMe.quota.base}`);
 
-  console.log("2. 用户 B：通过 A 的邀请码注册");
+  console.log("2. User B: signs up with A's referral code");
   const bob = makeClient();
   const b = await login(bob, "human", aMe.user.referralCode);
-  check("B 登录成功", b.status === 200);
+  check("B login succeeds", b.status === 200);
   const bProfile = await setProfile(bob, `bob_${suffix}`);
-  check("B 建档", bProfile.status === 200, JSON.stringify(bProfile.body));
+  check("B creates profile", bProfile.status === 200, JSON.stringify(bProfile.body));
   const bMe = (await bob.req("/api/me")).body;
   const aMe2 = (await alice.req("/api/me")).body;
-  check("邀请人 A 获得 +3 名额", aMe2.quota.bonus === 3, `实际 ${aMe2.quota.bonus}`);
-  check("被邀请人 B 获得 +2 名额", bMe.quota.bonus === 2, `实际 ${bMe.quota.bonus}`);
-  check("A 有效邀请数 = 1", aMe2.referral.invitedCount === 1);
+  check("Inviter A gets +3 quota", aMe2.quota.bonus === 3, `got ${aMe2.quota.bonus}`);
+  check("Invitee B gets +2 quota", bMe.quota.bonus === 2, `got ${bMe.quota.bonus}`);
+  check("A's valid invite count = 1", aMe2.referral.invitedCount === 1);
 
-  console.log("3. 私信：发起、回复门槛、回复解锁");
+  console.log("3. DMs: initiate, reply gate, unlock after reply");
   const t1 = await bob.req("/api/threads", {
     method: "POST",
-    body: JSON.stringify({ toAddress: aMe.user.address, body: "你好 Alice!" }),
+    body: JSON.stringify({ toAddress: aMe.user.address, body: "Hi Alice!" }),
   });
-  check("B 发起会话", t1.status === 200 && t1.body.threadId, JSON.stringify(t1.body));
+  check("B starts a thread", t1.status === 200 && t1.body.threadId, JSON.stringify(t1.body));
   const threadId = t1.body.threadId;
   const t2 = await bob.req(`/api/threads/${threadId}`, {
     method: "POST",
-    body: JSON.stringify({ body: "再发一条" }),
+    body: JSON.stringify({ body: "One more message" }),
   });
-  check("回复前二次发送被拒 (429)", t2.status === 429, `实际 ${t2.status}`);
+  check("Second send before reply rejected (429)", t2.status === 429, `got ${t2.status}`);
   const bMe2 = (await bob.req("/api/me")).body;
-  check("B 名额被消耗 1", bMe2.quota.consumed === 1, `实际 ${bMe2.quota.consumed}`);
+  check("B's quota consumed by 1", bMe2.quota.consumed === 1, `got ${bMe2.quota.consumed}`);
   const reply = await alice.req(`/api/threads/${threadId}`, {
     method: "POST",
-    body: JSON.stringify({ body: "你好 Bob" }),
+    body: JSON.stringify({ body: "Hi Bob" }),
   });
-  check("A 可以回复", reply.status === 200);
+  check("A can reply", reply.status === 200);
   const t3 = await bob.req(`/api/threads/${threadId}`, {
     method: "POST",
-    body: JSON.stringify({ body: "收到回复后可以继续发了" }),
+    body: JSON.stringify({ body: "Can send again after your reply" }),
   });
-  check("回复后 B 可继续发送", t3.status === 200, JSON.stringify(t3.body));
+  check("B can send again after reply", t3.status === 200, JSON.stringify(t3.body));
   const detail = (await bob.req(`/api/threads/${threadId}`)).body;
-  check("消息共 3 条", detail.messages.length === 3, `实际 ${detail.messages.length}`);
+  check("3 messages in total", detail.messages.length === 3, `got ${detail.messages.length}`);
 
-  console.log("4. 拉黑 / 解除");
+  console.log("4. Block / unblock");
   const blk = await alice.req(`/api/users/${bMe.user.address}/block`, {
     method: "POST",
     body: JSON.stringify({ action: "block" }),
   });
-  check("A 拉黑 B", blk.status === 200 && blk.body.blocked);
+  check("A blocks B", blk.status === 200 && blk.body.blocked);
   const t4 = await bob.req(`/api/threads/${threadId}`, {
     method: "POST",
-    body: JSON.stringify({ body: "还能发吗" }),
+    body: JSON.stringify({ body: "Can I still send?" }),
   });
-  check("被拉黑后 B 无法发送 (403)", t4.status === 403, `实际 ${t4.status}`);
+  check("B cannot send after being blocked (403)", t4.status === 403, `got ${t4.status}`);
   const blist = (await alice.req("/api/blocklist")).body;
-  check("黑名单里有 B", blist.blocked.length === 1);
+  check("Blocklist contains B", blist.blocked.length === 1);
   const unblk = await alice.req(`/api/users/${bMe.user.address}/block`, {
     method: "POST",
     body: JSON.stringify({ action: "unblock" }),
   });
-  check("解除拉黑", unblk.status === 200 && unblk.body.blocked === false);
+  check("Unblock succeeds", unblk.status === 200 && unblk.body.blocked === false);
 
-  console.log("5. 机器人限制");
+  console.log("5. Bot restrictions");
   const botC = makeClient();
   await login(botC, "bot");
   await setProfile(botC, `bot_${suffix}`);
   const t5 = await botC.req("/api/threads", {
     method: "POST",
-    body: JSON.stringify({ toAddress: aMe.user.address, body: "我是机器人" }),
+    body: JSON.stringify({ toAddress: aMe.user.address, body: "I am a bot" }),
   });
-  check("Bot 主动私信被拒 (403)", t5.status === 403, `实际 ${t5.status}`);
+  check("Bot-initiated DM rejected (403)", t5.status === 403, `got ${t5.status}`);
 
-  // Bot 接入配置（开放口：运营商自带对话模型）
+  // Bot integration config (open endpoint: operators bring their own chat model)
   const cfgHuman = await alice.req("/api/bot/config", {
     method: "PUT",
     body: JSON.stringify({ apiUrl: "https://api.openai.com/v1", model: "gpt-4o-mini", enabled: true }),
   });
-  check("人类账号配置 Bot 被拒 (403)", cfgHuman.status === 403, `实际 ${cfgHuman.status}`);
+  check("Human account configuring bot rejected (403)", cfgHuman.status === 403, `got ${cfgHuman.status}`);
   const cfgBad = await botC.req("/api/bot/config", {
     method: "PUT",
     body: JSON.stringify({ apiUrl: "ftp://evil", model: "x", enabled: true }),
   });
-  check("非法 apiUrl 被拒 (400)", cfgBad.status === 400, `实际 ${cfgBad.status}`);
+  check("Invalid apiUrl rejected (400)", cfgBad.status === 400, `got ${cfgBad.status}`);
   const cfgPut = await botC.req("/api/bot/config", {
     method: "PUT",
     body: JSON.stringify({
       apiUrl: "https://api.openai.com/v1",
       apiKey: "sk-test",
       model: "gpt-4o-mini",
-      systemPrompt: "你是接待员",
+      systemPrompt: "You are a receptionist",
       enabled: true,
     }),
   });
-  check("Bot 保存接入配置", cfgPut.status === 200, `实际 ${cfgPut.status}`);
+  check("Bot saves integration config", cfgPut.status === 200, `got ${cfgPut.status}`);
   const cfgGet = await botC.req("/api/bot/config");
   check(
-    "配置回读（key 只写不读）",
+    "Config readback (key is write-only)",
     cfgGet.status === 200 &&
       cfgGet.body.apiUrl === "https://api.openai.com/v1" &&
       cfgGet.body.hasApiKey === true &&
@@ -195,31 +195,31 @@ const run = async () => {
     JSON.stringify(cfgGet.body)
   );
 
-  console.log("6. 内容过滤");
+  console.log("6. Content filtering");
   const badLink = await setProfile(alice, `alice_${suffix}`, { link: "http://bit.ly/x" });
-  check("坏链接被拒", badLink.status === 400);
+  check("Bad link rejected", badLink.status === 400);
   const goodLink = await setProfile(alice, `alice_${suffix}`, {
     link: "https://example.com/me",
   });
-  check("正常 https 链接通过", goodLink.status === 200);
+  check("Valid https link accepted", goodLink.status === 200);
 
-  console.log("7. 地图");
+  console.log("7. Map");
   const mapUsers = (await alice.req("/api/map/users")).body;
   const found = mapUsers.users.filter((u) =>
     [`alice_${suffix}`, `bob_${suffix}`, `bot_${suffix}`].includes(u.username)
   );
-  check("三个新用户都在地图上（国别质心）", found.length === 3, `实际 ${found.length}`);
+  check("All three new users on the map (country centroid)", found.length === 3, `got ${found.length}`);
   const aliceOnMap = found.find((u) => u.username === `alice_${suffix}`);
   check(
-    "地图数据带性别与主办方标记（角标/方形头像用）",
+    "Map data includes gender and organizer flag (for badge/square avatar)",
     aliceOnMap?.gender === "other" && typeof aliceOnMap?.isOrganizer === "boolean",
     JSON.stringify({ gender: aliceOnMap?.gender, isOrganizer: aliceOnMap?.isOrganizer })
   );
 
-  console.log("8. 活动（主办方牌照 + 地图点亮）");
+  console.log("8. Events (organizer license + map highlight)");
   const lic = await alice.req("/api/license");
   check(
-    "牌照状态接口正常（dev 牌照 + 价格 2000/1000 SIMN）",
+    "License status endpoint OK (dev license + prices 2000/1000 SIMN)",
     lic.status === 200 &&
       lic.body.organizer?.ok === true &&
       lic.body.organizer?.devMode === true &&
@@ -236,7 +236,7 @@ const run = async () => {
     }),
   });
   check(
-    "swap 报价代理正常（无 key → 链上回退 / 有 key → uniswap）",
+    "Swap quote proxy OK (no key -> onchain fallback / key -> uniswap)",
     swapQuote.status === 200 &&
       (swapQuote.body.source === "onchain" || swapQuote.body.source === "uniswap"),
     JSON.stringify(swapQuote.body)
@@ -256,7 +256,7 @@ const run = async () => {
     }),
   });
   check(
-    "A 创建活动成功（未配置合约 → dev 牌照）",
+    "A creates event successfully (no contract configured -> dev license)",
     ev1.status === 200 && ev1.body.eventId && ev1.body.licenseDevMode === true,
     JSON.stringify(ev1.body)
   );
@@ -271,7 +271,7 @@ const run = async () => {
       themeColor: "#f472b6",
     }),
   });
-  check("并发第二个活动被拒 (429，1 仓位=1 活动)", ev2.status === 429, `实际 ${ev2.status}`);
+  check("Concurrent second event rejected (429, 1 slot = 1 event)", ev2.status === 429, `got ${ev2.status}`);
   const evBot = await botC.req("/api/v1/events", {
     method: "POST",
     body: JSON.stringify({
@@ -282,7 +282,7 @@ const run = async () => {
       endsAt: nowS + 3600,
     }),
   });
-  check("Bot 创建活动被拒 (403)", evBot.status === 403, `实际 ${evBot.status}`);
+  check("Bot event creation rejected (403)", evBot.status === 403, `got ${evBot.status}`);
   const evBad = await bob.req("/api/v1/events", {
     method: "POST",
     body: JSON.stringify({
@@ -294,26 +294,26 @@ const run = async () => {
       themeColor: "red",
     }),
   });
-  check("非法主题色被拒 (400)", evBad.status === 400, `实际 ${evBad.status}`);
+  check("Invalid theme color rejected (400)", evBad.status === 400, `got ${evBad.status}`);
   const evList = (await alice.req("/api/v1/events")).body;
   const mine = evList.events.find((e) => e.id === ev1.body.eventId);
-  check("活动列表包含新活动且 live", !!mine && mine.live === true);
-  check("活动带精确位置地址 (venue)", mine?.venue === "10 Bayfront Ave, Singapore 018956");
+  check("Event list contains new event and it is live", !!mine && mine.live === true);
+  check("Event includes exact venue address", mine?.venue === "10 Bayfront Ave, Singapore 018956");
   const mapEvents = (await alice.req("/api/map/events")).body;
   const mapEv = mapEvents.events.find((e) => e.id === ev1.body.eventId);
   check(
-    "地图活动数据正常（无 NFT 门槛 → holders 空）",
+    "Map event data OK (no NFT gate -> empty holders)",
     !!mapEv && mapEv.gated === false && Array.isArray(mapEv.holders)
   );
-  check("地图活动数据带 venue", mapEv?.venue === "10 Bayfront Ave, Singapore 018956");
+  check("Map event data includes venue", mapEv?.venue === "10 Bayfront Ave, Singapore 018956");
 
-  console.log("8b. 关注活动");
+  console.log("8b. Follow events");
   const fol1 = await bob.req(`/api/v1/events/${ev1.body.eventId}/follow`, {
     method: "POST",
     body: JSON.stringify({ action: "follow" }),
   });
   check(
-    "B 关注活动成功",
+    "B follows event successfully",
     fol1.status === 200 && fol1.body.following === true && fol1.body.followers >= 1,
     JSON.stringify(fol1.body)
   );
@@ -321,21 +321,21 @@ const run = async () => {
     (e) => e.id === ev1.body.eventId
   );
   check(
-    "B 视角活动 followedByMe=true 且带 followers 数",
+    "From B's view followedByMe=true with followers count",
     mapEvB?.followedByMe === true && mapEvB?.followers >= 1,
     JSON.stringify({ followedByMe: mapEvB?.followedByMe, followers: mapEvB?.followers })
   );
   const mapEvA = (await alice.req("/api/map/events")).body.events.find(
     (e) => e.id === ev1.body.eventId
   );
-  check("A 视角未关注 followedByMe=false", mapEvA?.followedByMe === false);
+  check("From A's view (not following) followedByMe=false", mapEvA?.followedByMe === false);
   const fol2 = await bob.req(`/api/v1/events/${ev1.body.eventId}/follow`, {
     method: "POST",
     body: JSON.stringify({ action: "unfollow" }),
   });
-  check("B 取消关注成功", fol2.status === 200 && fol2.body.following === false);
+  check("B unfollows successfully", fol2.status === 200 && fol2.body.following === false);
 
-  console.log("8c. 性别一次性锁定");
+  console.log("8c. Gender locked after first set");
   const bMe0 = (await bob.req("/api/me")).body;
   const gBefore = bMe0.profile.gender;
   await bob.req("/api/profile", {
@@ -350,63 +350,63 @@ const run = async () => {
   });
   const bMe1 = (await bob.req("/api/me")).body;
   check(
-    "改性别被忽略（保持原值）",
+    "Gender change ignored (original value kept)",
     bMe1.profile.gender === gBefore,
     `before=${gBefore} after=${bMe1.profile.gender}`
   );
   const aPub = (await bob.req(`/api/users/${aMe.user.address}`)).body;
   check(
-    "有活动的用户标记为主办方（方形头像用）",
+    "User with events flagged as organizer (for square avatar)",
     aPub.isOrganizer === true && aPub.accountType === "human",
     JSON.stringify({ isOrganizer: aPub.isOrganizer })
   );
 
-  console.log("9. 打赏（SIMN 链上验证）");
+  console.log("9. Tipping (SIMN onchain verification)");
   const tipBadHash = await bob.req(`/api/threads/${threadId}/tip`, {
     method: "POST",
     body: JSON.stringify({ txHash: "not-a-hash" }),
   });
-  check("非法交易哈希被拒 (400)", tipBadHash.status === 400, `实际 ${tipBadHash.status}`);
+  check("Invalid tx hash rejected (400)", tipBadHash.status === 400, `got ${tipBadHash.status}`);
   const stranger = makeClient();
   await login(stranger, "human");
   const tipNoThread = await stranger.req(`/api/threads/${threadId}/tip`, {
     method: "POST",
     body: JSON.stringify({ txHash: "0x" + "ab".repeat(32) }),
   });
-  check("非会话成员打赏被拒 (404)", tipNoThread.status === 404, `实际 ${tipNoThread.status}`);
+  check("Tipping by non-member of thread rejected (404)", tipNoThread.status === 404, `got ${tipNoThread.status}`);
   const detail2 = (await bob.req(`/api/threads/${threadId}`)).body;
   check(
-    "消息带 kind 字段（打赏消息渲染用）",
+    "Messages include kind field (for rendering tip messages)",
     detail2.messages.every((m) => m.kind === "text"),
     JSON.stringify(detail2.messages[0])
   );
 
-  console.log("10. 自定义头像（上传 + 合规钩子）");
+  console.log("10. Custom avatar (upload + compliance hook)");
   const png1x1 =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
   const up = await alice.req("/api/avatar", {
     method: "POST",
     body: JSON.stringify({ data: png1x1 }),
   });
-  check("上传头像成功", up.status === 200 && up.body.url, JSON.stringify(up.body));
+  check("Avatar upload succeeds", up.status === 200 && up.body.url, JSON.stringify(up.body));
   const upBad = await alice.req("/api/avatar", {
     method: "POST",
     body: JSON.stringify({ data: "data:image/png;base64,aGVsbG8=" }),
   });
-  check("伪造图片字节被拒 (400)", upBad.status === 400, `实际 ${upBad.status}`);
+  check("Fake image bytes rejected (400)", upBad.status === 400, `got ${upBad.status}`);
   const saveCustom = await setProfile(alice, `alice_${suffix}`, { avatar: "custom" });
-  check("保存 custom 头像", saveCustom.status === 200, JSON.stringify(saveCustom.body));
+  check("Save custom avatar", saveCustom.status === 200, JSON.stringify(saveCustom.body));
   const aMe3 = (await alice.req("/api/me")).body;
   check(
-    "me 返回 avatar_url",
+    "me returns avatar_url",
     aMe3.profile.avatar === "custom" && !!aMe3.profile.avatar_url,
     JSON.stringify({ avatar: aMe3.profile.avatar, url: aMe3.profile.avatar_url })
   );
   const img = await fetch(BASE + aMe3.profile.avatar_url.split("?")[0]);
   check(
-    "头像文件可访问且为图片",
+    "Avatar file accessible and is an image",
     img.status === 200 && (img.headers.get("content-type") ?? "").startsWith("image/"),
-    `实际 ${img.status} ${img.headers.get("content-type")}`
+    `got ${img.status} ${img.headers.get("content-type")}`
   );
   const noUpload = await stranger.req("/api/profile", {
     method: "PUT",
@@ -418,22 +418,22 @@ const run = async () => {
       link: "",
     }),
   });
-  check("未上传就用 custom 被拒 (400)", noUpload.status === 400, `实际 ${noUpload.status}`);
+  check("Using custom without upload rejected (400)", noUpload.status === 400, `got ${noUpload.status}`);
 
   // The SDK is not published yet (sdk/ is gitignored); skip when absent.
   const sdkPresent = (await import("node:fs")).existsSync(
     new URL("../sdk/mapsocial.mjs", import.meta.url)
   );
   if (!sdkPresent) {
-    console.log("11. SDK（sdk/mapsocial.mjs 不存在，跳过）");
-    console.log(`\n结果: ${passed} 通过, ${failed} 失败`);
+    console.log("11. SDK (sdk/mapsocial.mjs missing, skipping)");
+    console.log(`\nResult: ${passed} passed, ${failed} failed`);
     process.exit(failed > 0 ? 1 : 0);
   }
-  console.log("11. SDK（sdk/mapsocial.mjs 全链路）");
+  console.log("11. SDK (sdk/mapsocial.mjs end-to-end)");
   const { MapSocial, MapSocialError } = await import("../sdk/mapsocial.mjs");
   const { generatePrivateKey: genKey } = await import("viem/accounts");
 
-  // 主办方路径：登录 → 建档 → 牌照 → 创建活动（dev 牌照放行）
+  // Organizer path: login -> create profile -> license -> create event (allowed by dev license)
   const org = new MapSocial({ baseUrl: BASE });
   await org.login(genKey());
   await org.setProfile({
@@ -445,7 +445,7 @@ const run = async () => {
   });
   const sdkLic = await org.license();
   check(
-    "SDK 读取牌照状态",
+    "SDK reads license status",
     typeof sdkLic.organizer.ok === "boolean" && typeof sdkLic.organizer.price === "string",
     JSON.stringify(sdkLic.organizer)
   );
@@ -458,8 +458,8 @@ const run = async () => {
     endsAt: nowS2 + 3600,
     themeColor: "#38bdf8",
   });
-  check("SDK 创建活动成功", sdkEv.ok === true && sdkEv.eventId > 0, JSON.stringify(sdkEv));
-  // 数量规则同样约束 SDK：1 仓位 = 1 进行中活动
+  check("SDK creates event successfully", sdkEv.ok === true && sdkEv.eventId > 0, JSON.stringify(sdkEv));
+  // The quantity rule also applies to the SDK: 1 slot = 1 live event
   const sdkOver = await org
     .createEvent({
       title: `SDK Event2 ${suffix}`,
@@ -471,12 +471,12 @@ const run = async () => {
     })
     .catch((e) => e);
   check(
-    "SDK 超额创建同样被拒 (429 EVENT_LIMIT)",
+    "SDK over-limit creation also rejected (429 EVENT_LIMIT)",
     sdkOver instanceof MapSocialError && sdkOver.status === 429 && sdkOver.code === "EVENT_LIMIT",
-    `实际 ${sdkOver.status} ${sdkOver.code}`
+    `got ${sdkOver.status} ${sdkOver.code}`
   );
 
-  // Bot 路径：Bot 钱包登录 → 配置接入
+  // Bot path: bot wallet login -> configure integration
   const sdkBot = new MapSocial({ baseUrl: BASE });
   await sdkBot.login(genKey(), { accountType: "bot" });
   await sdkBot.setProfile({
@@ -494,12 +494,12 @@ const run = async () => {
   });
   const sdkCfg = await sdkBot.botConfig();
   check(
-    "SDK 配置 Bot 接入并回读",
+    "SDK configures bot integration and reads it back",
     sdkCfg.hasApiKey === true && sdkCfg.model === "gpt-4o-mini",
     JSON.stringify(sdkCfg)
   );
 
-  console.log(`\n结果: ${passed} 通过, ${failed} 失败`);
+  console.log(`\nResult: ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
 };
 

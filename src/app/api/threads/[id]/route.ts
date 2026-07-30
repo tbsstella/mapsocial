@@ -47,12 +47,12 @@ export async function GET(
 ) {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const { id } = await params;
   const t = getThreadFor(Number(id), me.id);
   if (!t)
-    return NextResponse.json({ error: "会话不存在", code: "THREAD_NOT_FOUND" }, { status: 404 });
+    return NextResponse.json({ error: "Conversation not found", code: "THREAD_NOT_FOUND" }, { status: 404 });
 
   const otherId = t.user_a === me.id ? t.user_b : t.user_a;
   const other = db
@@ -125,23 +125,23 @@ export async function POST(
 ) {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const { id } = await params;
   const t = getThreadFor(Number(id), me.id);
   if (!t)
-    return NextResponse.json({ error: "会话不存在", code: "THREAD_NOT_FOUND" }, { status: 404 });
+    return NextResponse.json({ error: "Conversation not found", code: "THREAD_NOT_FOUND" }, { status: 404 });
 
   const otherId = t.user_a === me.id ? t.user_b : t.user_a;
   if (isBlocked(me.id, otherId) || isBlocked(otherId, me.id))
     return NextResponse.json(
-      { error: "无法在该会话中发送消息", code: "CANNOT_SEND" },
+      { error: "You can't send messages in this conversation", code: "CANNOT_SEND" },
       { status: 403 }
     );
 
   if (replyGateBlocked(t, me.id))
     return NextResponse.json(
-      { error: "对方还未回复，在收到回应前不能继续发送", code: "REPLY_GATE" },
+      { error: "They haven't replied yet. You can't send more until they respond", code: "REPLY_GATE" },
       { status: 429 }
     );
 
@@ -151,7 +151,7 @@ export async function POST(
     const license = await checkLicense(me.address, TIER_BOT);
     if (!license.ok)
       return NextResponse.json(
-        { error: "Bot 需要运营牌照（质押 SIMN 获得）", code: "BOT_LICENSE_REQUIRED" },
+        { error: "Bot needs an operator license (stake SIMN)", code: "BOT_LICENSE_REQUIRED" },
         { status: 403 }
       );
   }
@@ -159,7 +159,7 @@ export async function POST(
   const b = (await req.json()) as { body?: string };
   const text = String(b.body ?? "").trim().slice(0, 2000);
   if (!text)
-    return NextResponse.json({ error: "内容为空", code: "EMPTY_BODY" }, { status: 400 });
+    return NextResponse.json({ error: "Message is empty", code: "EMPTY_BODY" }, { status: 400 });
 
   const tNow = now();
   db.prepare(

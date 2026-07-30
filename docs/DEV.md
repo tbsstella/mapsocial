@@ -1,227 +1,227 @@
 # MapSocial — Developer Document
 
 > Status: v0.2 (EVM MVP implemented)
-> Phase: 无限期免费，直到用户基础达标再讨论商业化（无 90 天倒计时）。
+> Phase: free indefinitely until the user base hits target, then revisit monetization (no 90-day countdown).
 
-## 1. 产品概览
+## 1. Product Overview
 
-以极简可缩放地图为主界面的钱包社交网络：
+A wallet-based social network whose main interface is a minimalist zoomable map:
 
-- EVM 钱包 SIWE 签名登录（零 gas，只读公钥）
-- 建立 Profile（头像 / 性别 / 用户名 / 简介 / 链接 / 权限开关 / 黑名单）
-- 地图显示可见用户，点头像看 Profile、发私信
-- 可信度分数由多链链上数据统一计算 → 决定每日搭讪（主动私信）名额
-- Referral：邀请好友完成 Profile → 双方获得额外搭讪名额（免费期不发现金）
-- i18n：9 种语言字典在 `src/lib/locales/`，`src/lib/i18n.tsx` 提供 Provider/useI18n；API 错误返回 `code` 字段由客户端本地化
-- VPN 检测：`src/lib/ipcheck.ts` 通过 IP 情报（默认 ip-api.com，`IP_CHECK_URL` 可换）检测 proxy/hosting IP，每 24h 刷新，`users.vpn_detected` 对外在 Profile 卡片标注
-- 未来：Open API 供钱包等产品套用；商业化后 referral 升级为净收入分成
+- EVM wallet login via SIWE signature (zero gas, read-only public key)
+- Create a Profile (avatar / gender / username / bio / links / permission toggles / blocklist)
+- The map shows visible users; click an avatar to view a Profile and send a DM
+- A trust score is computed uniformly from multi-chain on-chain data → determines the daily approach (initiated-DM) quota
+- Referral: invite a friend who completes their Profile → both sides earn extra approach quota (no cash payouts during the free phase)
+- i18n: dictionaries for 9 languages live in `src/lib/locales/`; `src/lib/i18n.tsx` provides the Provider/useI18n; API errors return a `code` field that the client localizes
+- VPN detection: `src/lib/ipcheck.ts` detects proxy/hosting IPs via IP intelligence (ip-api.com by default, swappable via `IP_CHECK_URL`), refreshed every 24h; `users.vpn_detected` is surfaced as a badge on the Profile card
+- Future: an Open API for wallets and other products to build on; after monetization, referral upgrades to net-revenue sharing
 
-## 2. 多链架构（EVM 统一身份）
+## 2. Multi-chain Architecture (unified EVM identity)
 
-同一助记词在所有 EVM 链上派生同一地址，因此**一次签名 = 全链身份**。
+The same mnemonic derives the same address on every EVM chain, so **one signature = identity across all chains**.
 
-| 链 | Chain ID | trustWeight | 数据源 |
+| Chain | Chain ID | trustWeight | Data source |
 |---|---|---|---|
-| Ethereum | 1 | 1.0 | 公共 RPC |
-| Polygon | 137 | 0.8 | 公共 RPC |
-| Arbitrum One | 42161 | 0.8 | 公共 RPC |
+| Ethereum | 1 | 1.0 | Public RPC |
+| Polygon | 137 | 0.8 | Public RPC |
+| Arbitrum One | 42161 | 0.8 | Public RPC |
 | Robinhood Chain | 4663 | 0.5 | rpc.mainnet.chain.robinhood.com |
 | HyperEVM | 999 | 0.5 | rpc.hyperliquid.xyz/evm |
 
-设计原则：
+Design principles:
 
-- 新链（Robinhood/HyperEVM）权重低，防止在零成本新链刷活跃度薅分
-- 加新链 = 在 `src/lib/chains.ts` 的 `APP_CHAINS` 加一项
-- 非 EVM 链（Solana 等）未来通过「多地址签名绑定」接入（一个 user 多个地址），当前未实现
-- HyperEVM 只读 EVM 侧余额；HyperCore（交易层）资产未计入，后续可接 Hyperliquid API
+- New chains (Robinhood/HyperEVM) get low weights to stop score farming via cheap activity on zero-cost new chains
+- Adding a chain = adding one entry to `APP_CHAINS` in `src/lib/chains.ts`
+- Non-EVM chains (Solana etc.) will be onboarded later via "multi-address signature binding" (one user, multiple addresses); not implemented yet
+- HyperEVM only reads EVM-side balances; HyperCore (trading layer) assets are not counted — a Hyperliquid API integration can come later
 
-## 3. 可信度打分（`src/lib/trust.ts`）
+## 3. Trust Scoring (`src/lib/trust.ts`)
 
 `score = activity(0-50) + assets(0-30) + diversity(0-20) − blockPenalty(≤20)`
 
-- **activity**：各链 `eth_getTransactionCount` × trustWeight 加总后取对数刻度
-- **assets**：五链原生币 + 主流稳定币（ETH/ARB/Polygon 的 USDC、USDT 白名单）折 USD 分档
-- **diversity**：有真实活动（≥3 笔交易或 ≥$10）的链数 × 5
-- **blockPenalty**：被拉黑人数 × 4，封顶 20；拉黑发生时另有即时 −4
-- 每 24h 惰性刷新（`/api/me` 触发），结果缓存于 `users` 表
-- 币价：CoinGecko（10 分钟缓存）→ 失败回退环境变量静态价
-- **分数不可购买、不可修改**；未来付费只能提高名额上限，不能改分
+- **activity**: per-chain `eth_getTransactionCount` × trustWeight, summed, then log-scaled
+- **assets**: native coins across the five chains + major stablecoins (whitelisted USDC/USDT on ETH/ARB/Polygon), converted to USD and bucketed
+- **diversity**: number of chains with real activity (≥3 transactions or ≥$10) × 5
+- **blockPenalty**: number of users who blocked you × 4, capped at 20; an additional immediate −4 is applied when a block happens
+- Lazily refreshed every 24h (triggered by `/api/me`); results cached in the `users` table
+- Token prices: CoinGecko (10-minute cache) → falls back to static prices from environment variables on failure
+- **The score cannot be bought or modified**; future paid tiers may only raise quota caps, never change the score
 
-已知局限（后续迭代）：未接入「地址年龄」（需 Etherscan V2 / Blockscout API），
-当前以 nonce 活跃度近似。接入时新增 `EtherscanV2Adapter`（ETH/Polygon/Arb）与
-`BlockscoutAdapter`（Robinhood/HyperEVM）。
+Known limitation (future iteration): "address age" is not yet used (requires Etherscan V2 / Blockscout APIs);
+nonce-based activity is the current approximation. When added, introduce an `EtherscanV2Adapter` (ETH/Polygon/Arb) and a
+`BlockscoutAdapter` (Robinhood/HyperEVM).
 
-## 4. 搭讪名额（`src/lib/quota.ts`）
+## 4. Approach Quota (`src/lib/quota.ts`)
 
-- 基础日名额：可信度 0-29→1，30-59→3，60-79→8，80-100→15
-- 名额定义：当日（UTC 自然日）**发起的新会话数**（不是单条消息数），每日 00:00 UTC 重置
-- `实际名额 = 基础 + 未过期邀请奖励 − 今日已发起会话数`
+- Base daily quota by trust score: 0-29→1, 30-59→3, 60-79→8, 80-100→15
+- Quota definition: the number of **new conversations initiated** during the day (UTC calendar day) — not individual messages; resets daily at 00:00 UTC
+- `effective quota = base + unexpired referral bonuses − conversations initiated today`
 
-## 5. 私信规则（`/api/threads`）
+## 5. DM Rules (`/api/threads`)
 
-- 发起会话：human only（bot 403）、目标开放私信、双向无拉黑、有剩余名额
-- **回复门槛**：发起人在对方回复前只能有 1 条消息（`replyGateBlocked`）
-- 聊天框有 Block / Unblock；拉黑即时 −4 分并计入下次刷新扣分
-- 通讯录 = 会话列表，跟随钱包（服务端按 user 存储）
-- 免费期存储不设付费墙；schema 已预留按量限制的扩展空间
+- Initiating a conversation: human only (bots get 403), target has DMs open, no block in either direction, quota remaining
+- **Reply gate**: the initiator may send only 1 message until the other side replies (`replyGateBlocked`)
+- The chat window has Block / Unblock; blocking applies an immediate −4 and counts toward the penalty at the next refresh
+- Contact list = conversation list, follows the wallet (stored server-side per user)
+- No paywall on storage during the free phase; the schema already leaves room for metered limits
 
-## 6. Referral（`src/lib/referral.ts`）
+## 6. Referral (`src/lib/referral.ts`)
 
-免费期奖励 = 搭讪名额，不发现金：
+Free-phase rewards = approach quota, no cash:
 
-| 参数 | 值 |
+| Parameter | Value |
 |---|---|
-| 邀请人奖励 | +3 名额 / 有效邀请 |
-| 被邀请人奖励 | +2 名额 |
-| 有效期 | 30 天 |
-| 每周有效邀请上限 | 10 |
-| 累计奖励上限 | +30 |
-| Bot | 不获得搭讪名额 |
+| Inviter reward | +3 quota / valid invite |
+| Invitee reward | +2 quota |
+| Validity | 30 days |
+| Weekly valid-invite cap | 10 |
+| Cumulative reward cap | +30 |
+| Bots | earn no approach quota |
 
-- 有效邀请 = 通过 `/r/[code]` 进入 → 连接钱包注册 → **完成 Profile**
-- 邀请关系永久写入 `users.referred_by` + `referral_events`（为将来收入分成留账）
-- 未来商业化：同一归因链路上叠加「净收入 20% 直推分成」（Polymarket 式）
+- A valid invite = arriving via `/r/[code]` → connecting a wallet and registering → **completing the Profile**
+- The referral relationship is permanently recorded in `users.referred_by` + `referral_events` (bookkeeping for future revenue sharing)
+- Future monetization: a "20% of net revenue direct-referral share" (Polymarket-style) will be layered onto the same attribution chain
 
-## 7. 安全与合规
+## 7. Security & Compliance
 
-| 项 | 实现 |
+| Item | Implementation |
 |---|---|
-| 头像 | 12 款 crypto 风格预设 + 自由上传。上传链路：客户端 canvas 裁剪为 256px 方图（顺带去除 EXIF）→ 服务端魔数嗅探真实格式（jpeg/png/webp）+ 512KB 上限 → 合规钩子 `src/lib/moderation.ts`（配置 `OPENAI_API_KEY` 时用 omni-moderation 审核，审核异常 fail-closed；未配置时放行，**生产必须配置或替换为其他供应商**）→ 存 `data/uploads/<userId>`，经 `/api/avatar/file/[id]` 提供（nosniff + 缓存头） |
-| 性别 | 仅 男/女/其他，可见性可关 |
-| 资产 | 链上只读；可见/模糊/不可见；数字不可改 |
-| 链接 | 仅 https；拒绝 IP 直连、punycode、短链、危险 TLD（`linkfilter.ts`）；生产建议再接 Safe Browsing |
-| 位置 | 分享 → 客户端先取整到 0.1°（约 11km）再上传，服务端再取整兜底；不分享 → 国别质心 + 确定性抖动 |
-| 地图 | maxZoom 12，永不街道级精度 |
-| Bot | 不能发起会话；被动回复不受限（Bot 端口/Webhook 未来开放） |
-| 登录 | SIWE nonce 单次消费、10 分钟过期；session HttpOnly cookie 30 天 |
+| Avatar | 12 crypto-style presets + free upload. Upload pipeline: client-side canvas crop to a 256px square (which also strips EXIF) → server-side magic-byte sniffing of the real format (jpeg/png/webp) + 512KB limit → moderation hook `src/lib/moderation.ts` (uses omni-moderation when `OPENAI_API_KEY` is set, fail-closed on moderation errors; passes through when unset — **must be configured, or replaced with another provider, in production**) → stored at `data/uploads/<userId>`, served via `/api/avatar/file/[id]` (nosniff + cache headers) |
+| Gender | Male/Female/Other only; visibility can be turned off |
+| Assets | On-chain read-only; visible/blurred/hidden; the numbers cannot be edited |
+| Links | https only; rejects raw-IP URLs, punycode, URL shorteners, dangerous TLDs (`linkfilter.ts`); Safe Browsing recommended on top in production |
+| Location | Sharing on → client rounds to 0.1° (~11 km) before upload, server rounds again as a safety net; sharing off → country centroid + deterministic jitter |
+| Map | maxZoom 12, never street-level precision |
+| Bots | Cannot initiate conversations; passive replies are unrestricted (a bot port/webhook will open up later) |
+| Login | SIWE nonce is single-use with a 10-minute expiry; session is an HttpOnly cookie valid 30 days |
 
-MVP 限制：验签仅支持 EOA（`recoverMessageAddress`）；Safe/AA 合约钱包需 EIP-1271，未实现。
+MVP limitation: signature verification supports EOAs only (`recoverMessageAddress`); Safe/AA contract wallets need EIP-1271, not implemented.
 
-## 7.5 牌照质押（SIMN，`contracts/LicenseStake.sol`）
+## 7.5 License Staking (SIMN, `contracts/LicenseStake.sol`)
 
-商业角色（活动主办方 / Bot 运营方）通过质押平台 meme 币自助获得权限，
-无人工审核、防刷靠成本：
+Commercial roles (event organizers / bot operators) obtain permissions self-service by staking the platform meme coin —
+no manual review; abuse resistance comes from cost:
 
-| 项 | 值 |
+| Item | Value |
 |---|---|
-| 质押代币 | **SilMina (SIMN)** `0x2e3f8d10818807fa607be3e2AE53863d8d8F4235`（Ethereum 主网，18 位） |
-| 主办方牌照 (tier 1) | 质押 2000 SIMN，1 仓位 = 1 个进行中的活动 |
-| Bot 牌照 (tier 2) | 质押 1000 SIMN，1 仓位 = 1 个 Bot key |
-| 入场费 | 质押时一次性收 5%：3% 平台金库 + 1% referrer + 1% 返还质押人；无 referrer 时 5% 全归金库 |
-| 退出 | 随时 `unstake`，退回 95% 本金，无二次收费；`unstake` 永不可暂停 |
-| 定价 | 固定 SIMN 数量（模式 A，币价上涨=门槛上涨）；owner 可调价（分代 generation），已有仓位不受影响；总费率硬顶 5% 不可改 |
-| 推广位 | `stakeFor`（仅 owner）：平台出币给合作方开权限，无费用，退款只回平台 |
-| 防套利 | referral 返点 2% < 费用 5%，循环质押必然净亏损 |
+| Staking token | **SilMina (SIMN)** `0x2e3f8d10818807fa607be3e2AE53863d8d8F4235` (Ethereum mainnet, 18 decimals) |
+| Organizer license (tier 1) | Stake 2000 SIMN; 1 position = 1 concurrent live event |
+| Bot license (tier 2) | Stake 1000 SIMN; 1 position = 1 bot key |
+| Entry fee | One-time 5% at stake: 3% to the platform treasury + 1% to the referrer + 1% back to the staker; with no referrer, the full 5% goes to the treasury |
+| Exit | `unstake` anytime, returns 95% of principal, no second fee; `unstake` can never be paused |
+| Pricing | Fixed SIMN amounts (mode A: token price up = entry bar up); owner can reprice (per generation); existing positions are unaffected; total fee rate hard-capped at 5%, immutable |
+| Partner slots | `stakeFor` (owner only): the platform stakes on behalf of partners to grant permissions, no fee; refunds go back to the platform only |
+| Arbitrage resistance | referral rebate 2% < fee 5%, so circular staking is a guaranteed net loss |
 
-链下配套（`src/lib/license.ts`）：
-- `checkLicense(address, tier)` 读合约 `activeCount`，60s 缓存，RPC 失败 fail-closed
-- `LICENSE_STAKE_CONTRACT` 未配置（未部署）时 dev 模式放行 1 个名额，便于开发
-- 信任分底线 `EVENT_MIN_TRUST`（默认 0）是币价下跌时的安全阀
-- 编译：`node scripts/compile-contract.mjs`（solc wasm，产物 `contracts/build/`）
-- 部署：`DEPLOYER_KEY=0x... node scripts/deploy-license.mjs`（Ethereum 主网），部署后把地址写进 `LICENSE_STAKE_CONTRACT` 并把 owner 转给多签；**上主网前先独立安全审计 + 测试网演练**
+Off-chain companion (`src/lib/license.ts`):
+- `checkLicense(address, tier)` reads `activeCount` on the contract, 60s cache, fail-closed on RPC failure
+- When `LICENSE_STAKE_CONTRACT` is unset (not deployed), dev mode grants 1 position to ease development
+- The trust-score floor `EVENT_MIN_TRUST` (default 0) is the safety valve if the token price drops
+- Compile: `node scripts/compile-contract.mjs` (solc wasm, artifacts in `contracts/build/`)
+- Deploy: `DEPLOYER_KEY=0x... node scripts/deploy-license.mjs` (Ethereum mainnet); after deploying, set the address in `LICENSE_STAKE_CONTRACT` and transfer ownership to a multisig; **get an independent security audit + a testnet dry run before mainnet**
 
-## 7.6 活动（events）与地图点亮
+## 7.6 Events and Map Glow
 
-- 主办方（持有效 tier-1 仓位 + 信任分达标 + human + 有 Profile）通过
-  `POST /api/v1/events` 创建活动：标题/描述/坐标/起止时间（≤30 天）/主题色/可选链接
-- 前端「创建中心」（Dock ➕）：显示 SIMN 余额 + Uniswap 兑换按钮；未持牌时一键
-  approve + stake（tier 价格实时读合约，邀请人地址自动作为链上 referrer 传入）；
-  持牌后内置创建活动表单，活动坐标取当前地图中心（先把地图移到活动位置）
-- NFT 是**纯接入口**（可选）：平台不做发行模块。任何地方发行的 ERC-721 / ERC-1155
-  （1155 需 tokenId）填合约地址即可接入；门票设计、售卖、规则、成交全部由主办方
-  自己搞定。活动进行中，地图可见用户里持有该 NFT 的人会以活动主题色**发光脉冲**点亮
-  （`src/lib/nftgate.ts`，balanceOf 只读、5 分钟缓存、单次最多查 200 地址、失败视为未持有）
-- 活动本身在地图上是主题色 📅 标记（进行中脉冲发光，未开始半透明），顶栏「📅 活动」
-  面板列出进行中/即将开始的活动，点击飞到活动地点
-- 程序化接入：创建活动面板底部有「开放 API / SDK」卡片，内置一份面向开发者和
-  AI Agent 的接口速查（`POST /api/v1/events` 全参数），一键「复制给 AI」即可让
-  主办方的 Agent 自动接入
-- 到期后 NFT 无需销毁——点亮只在活动时间窗内生效，NFT 本身可留作纪念徽章
+- Organizers (holding a valid tier-1 position + trust score above the floor + human + Profile completed) create events via
+  `POST /api/v1/events`: title/description/coordinates/start & end times (≤30 days)/theme color/optional link
+- The frontend "Creator Hub" (Dock ➕): shows SIMN balance + a Uniswap swap button; when unlicensed, one-click
+  approve + stake (tier prices read live from the contract; the inviter's address is automatically passed as the on-chain referrer);
+  once licensed, a built-in event creation form — the event's coordinates use the current map center (move the map to the venue first)
+- NFTs are a **pure integration point** (optional): the platform has no issuance module. Any ERC-721 / ERC-1155
+  issued anywhere (1155 requires a tokenId) plugs in by entering the contract address; ticket design, sales, rules, and settlement are entirely
+  the organizer's business. While an event is live, users visible on the map who hold that NFT are lit with a **glowing pulse** in the event's theme color
+  (`src/lib/nftgate.ts`: read-only balanceOf, 5-minute cache, at most 200 addresses per query, failures treated as not holding)
+- The event itself appears on the map as a theme-colored 📅 marker (pulsing glow while live, semi-transparent before start); the top-bar "📅 Events"
+  panel lists live/upcoming events, and clicking one flies to its location
+- Programmatic integration: the bottom of the event creation panel has an "Open API / SDK" card with a built-in interface cheat sheet for developers and
+  AI agents (full parameters of `POST /api/v1/events`); one click on "Copy for AI" lets an
+  organizer's agent integrate automatically
+- After an event ends the NFT needs no burning — the glow only applies within the event's time window, and the NFT itself can remain a keepsake badge
 
-## 7.7 打赏（SIMN，聊天内）
+## 7.7 Tipping (SIMN, in chat)
 
-- 纯链上直转：前端用 wagmi 发起 SIMN `transfer(对方地址, 数量)`（Ethereum 主网），
-  平台不经手资金、不抽成、数量不限（余额够即可），任何人（包括 Bot）都可接收
-- 交易确认后前端把 txHash 提交 `POST /api/threads/[id]/tip`，服务端读链验证：
-  收据 success + SIMN 合约上 `Transfer(我 → 对方, >0)`，通过才插入 `kind='tip'`
-  消息（存原始 wei 数量 + txHash，`tip_tx` 唯一索引防同一笔交易重复入账）
-- 规则：打赏不占搭讪名额、不参与回复门槛（既不解锁也不消耗）；尊重拉黑
-  （被拉黑时不能在会话里记录打赏，链上转账本身无法阻止）
-- 聊天气泡为金色样式，附 Etherscan 交易链接
+- Pure on-chain direct transfer: the frontend uses wagmi to send a SIMN `transfer(recipient address, amount)` (Ethereum mainnet);
+  the platform never touches funds, takes no cut, and puts no limit on amounts (any balance-covered amount works); anyone (including bots) can receive
+- After the transaction confirms, the frontend submits the txHash to `POST /api/threads/[id]/tip`; the server verifies on-chain:
+  receipt success + a `Transfer(me → recipient, >0)` on the SIMN contract; only then is a `kind='tip'`
+  message inserted (storing the raw wei amount + txHash; a unique index on `tip_tx` prevents the same transaction being recorded twice)
+- Rules: tips consume no approach quota and do not interact with the reply gate (neither unlock nor consume it); blocks are respected
+  (a tip cannot be recorded in the conversation while blocked — the on-chain transfer itself cannot be stopped)
+- The chat bubble uses a gold style with an Etherscan transaction link
 
-## 7.75 开放接入的分层（API 为底座，SDK 为薄封装，CLI 暂缓）
+## 7.75 Open-integration Layering (API as the foundation, SDK as a thin wrapper, CLI deferred)
 
-- **API（必须，规则唯一来源）**：押币换权限的数量规则只在服务端强制一次——
-  主办方 1 个 tier-1 仓位 = 1 个进行中活动（超额 429 `EVENT_LIMIT`），Bot 回复
-  需有效 tier-2 仓位（403）。UI、API、SDK、AI Agent 走的是同一套检查，无法绕过
-- **SDK（推荐接入方式，`sdk/mapsocial.mjs`）**：零依赖（仅 viem）的 Node 单文件
-  客户端，封装了接入的最大门槛——SIWE 私钥登录，另有 `license()`、
-  `createEvent()`、`threads()/reply()`、`setBotConfig()` 等。JSDoc 里写明了
-  licensing 规则，AI Agent 读文件即可自动使用（冒烟测试第 11 节全链路验证）
-- **CLI（暂不做）**：目标用户是把功能集成进自己系统的运营商和 AI Agent，
-  都不需要 CLI；将来若有手动运维需求，基于 SDK 十几行就能包出来
-- **面板的双路径定位**：主办方 UI 优先——创建活动面板覆盖全流程（换币 → 质押 →
-  填表 → 发布，时长一键快捷选择），API/SDK 文档卡默认折叠在「开发者 / AI 接入」里；
-  运营商 SDK 优先——创建 Bot 面板把接口契约放最前，零代码接入（OpenAI 兼容
-  endpoint）折叠为次选项，已启用过的运营商自动展开
+- **API (mandatory, single source of truth for rules)**: the stake-for-permission quantity rules are enforced exactly once, server-side —
+  an organizer's 1 tier-1 position = 1 concurrent live event (over quota returns 429 `EVENT_LIMIT`); bot replies
+  require a valid tier-2 position (403). UI, API, SDK, and AI agents all go through the same checks — there is no way around them
+- **SDK (recommended integration path, `sdk/mapsocial.mjs`)**: a zero-dependency (viem only) single-file Node
+  client that wraps the biggest onboarding hurdle — SIWE login with a private key — plus `license()`,
+  `createEvent()`, `threads()/reply()`, `setBotConfig()`, etc. The JSDoc spells out the
+  licensing rules, so an AI agent can use it just by reading the file (full-path verification in smoke-test section 11)
+- **CLI (not for now)**: the target users are operators integrating the features into their own systems and AI agents —
+  neither needs a CLI; if manual ops needs arise later, one can be wrapped over the SDK in a dozen lines
+- **The panels' dual-path positioning**: organizers are UI-first — the event creation panel covers the whole flow (swap → stake →
+  fill the form → publish, with one-click duration presets), and the API/SDK docs card is collapsed by default under "Developer / AI access";
+  operators are SDK-first — the bot creation panel puts the interface contract up front, with the zero-code path (OpenAI-compatible
+  endpoint) folded away as the secondary option, auto-expanded for operators who have already enabled it
 
-## 7.8 Bot 接入（开放口，运营商自带模型）
+## 7.8 Bot Integration (open port, operators bring their own model)
 
-- 平台只提供聊天窗口，**不做收费逻辑**——计费、业务规则全部由运营商自己决定
-- 路径 A（零代码）：Bot 钱包登录后 `PUT /api/bot/config` 配任意 OpenAI 兼容
-  endpoint（apiUrl/apiKey/model/systemPrompt/enabled），来私信自动交给运营商的
-  模型应答（`src/lib/botreply.ts`，异步、10s 超时、失败静默；apiKey 只写不读）
-- 路径 B（完全自主）：Bot 钱包 SIWE 登录后走开放 API 轮询会话并回复
-  （`GET /api/threads`、`GET/POST /api/threads/[id]`）
-- 硬规则：Bot 永不主动私信；回复需有效 tier-2 质押（未配合约时 dev 模式放行）
-- 创建 Bot 面板同样内置「开放 API / SDK」速查卡 + 一键「复制给 AI」
+- The platform provides only the chat window and **implements no billing logic** — pricing and business rules are entirely up to the operator
+- Path A (zero code): after the bot wallet logs in, `PUT /api/bot/config` configures any OpenAI-compatible
+  endpoint (apiUrl/apiKey/model/systemPrompt/enabled); incoming DMs are automatically handed to the operator's
+  model to answer (`src/lib/botreply.ts` — async, 10s timeout, silent on failure; apiKey is write-only, never returned)
+- Path B (fully autonomous): the bot wallet logs in via SIWE and uses the open API to poll conversations and reply
+  (`GET /api/threads`, `GET/POST /api/threads/[id]`)
+- Hard rules: bots never initiate DMs; replying requires a valid tier-2 stake (dev mode grants it when no contract is configured)
+- The bot creation panel likewise embeds the "Open API / SDK" cheat-sheet card + one-click "Copy for AI"
 
-## 8. 数据模型（SQLite，`src/lib/db.ts`）
+## 8. Data Model (SQLite, `src/lib/db.ts`)
 
-`users`（地址、类型、referral、信任分缓存、资产缓存）→ `profiles`（资料+权限+位置）
-`threads`（有序对唯一 + initiator）→ `messages`
-`blocks`（黑名单）、`credit_grants`（名额台账）、`referral_events`（防刷计数）
-`auth_nonces` / `sessions`（登录）、`events`（活动 + NFT 门槛配置）、
-`bot_configs`（Bot 运营商接入配置，apiKey 只写不读）
+`users` (address, type, referral, trust-score cache, asset cache) → `profiles` (info + permissions + location)
+`threads` (unique ordered pair + initiator) → `messages`
+`blocks` (blocklist), `credit_grants` (quota ledger), `referral_events` (anti-abuse counters)
+`auth_nonces` / `sessions` (login), `events` (events + NFT gate config),
+`bot_configs` (bot operator integration config; apiKey write-only, never returned)
 
-所有数值上限（名额表、referral 参数、刷新间隔）集中在 lib 层常量，商业化时改配置即可。
+All numeric limits (quota table, referral parameters, refresh intervals) are centralized as constants in the lib layer; monetization is a config change.
 
-## 9. API 一览
+## 9. API Overview
 
-| 路由 | 方法 | 用途 |
+| Route | Method | Purpose |
 |---|---|---|
-| `/api/auth/nonce` | POST | 取 SIWE nonce |
-| `/api/auth/verify` | POST | 验签 → 建号（accountType/refCode）→ session |
-| `/api/auth/logout` | POST | 退出 |
-| `/api/me` | GET | 自己：user+profile+quota+referral（惰性刷新信任分） |
-| `/api/profile` | PUT | 建立/更新 Profile（首次完成触发 referral 奖励） |
-| `/api/avatar` | POST | 上传自定义头像（格式嗅探 + 大小上限 + 合规审核） |
-| `/api/avatar/file/[id]` | GET | 头像图片文件（公开，与 Profile 一致） |
-| `/api/users/[address]` | GET | 公开 Profile（按权限过滤） |
-| `/api/users/[address]/block` | POST | 拉黑 / 取消（`{action}`） |
-| `/api/blocklist` | GET | 我的黑名单 |
-| `/api/map/users` | GET | 地图点（可见用户，approx 或国别质心+抖动） |
-| `/api/threads` | GET/POST | 会话列表 / 发起会话（吃名额） |
-| `/api/threads/[id]` | GET/POST | 消息列表 / 发消息（回复门槛；Bot 发消息需链上运营牌照） |
-| `/api/threads/[id]/tip` | POST | 提交打赏交易哈希（服务端链上验证后入账） |
-| `/api/license` | GET | 当前钱包两档牌照状态 + 当前代际价格 + 邀请人地址（客户端质押时作为链上 referrer） |
-| `/api/bot/config` | GET/PUT | Bot 接入配置（OpenAI 兼容 endpoint；仅 Bot 账号；apiKey 只写不读） |
-| `/api/v1/events` | GET/POST | 活动列表（公开）/ 创建活动（需主办方牌照） |
-| `/api/map/events` | GET | 地图活动标记 + 各活动 NFT 持有者点亮名单 |
+| `/api/auth/nonce` | POST | Get a SIWE nonce |
+| `/api/auth/verify` | POST | Verify signature → create account (accountType/refCode) → session |
+| `/api/auth/logout` | POST | Log out |
+| `/api/me` | GET | Self: user+profile+quota+referral (lazily refreshes trust score) |
+| `/api/profile` | PUT | Create/update Profile (first completion triggers the referral reward) |
+| `/api/avatar` | POST | Upload a custom avatar (format sniffing + size limit + moderation) |
+| `/api/avatar/file/[id]` | GET | Avatar image file (public, matches the Profile) |
+| `/api/users/[address]` | GET | Public Profile (filtered by permissions) |
+| `/api/users/[address]/block` | POST | Block / unblock (`{action}`) |
+| `/api/blocklist` | GET | My blocklist |
+| `/api/map/users` | GET | Map points (visible users, approx or country centroid + jitter) |
+| `/api/threads` | GET/POST | Conversation list / initiate a conversation (consumes quota) |
+| `/api/threads/[id]` | GET/POST | Message list / send a message (reply gate; bot messages require an on-chain operator license) |
+| `/api/threads/[id]/tip` | POST | Submit a tip transaction hash (recorded after server-side on-chain verification) |
+| `/api/license` | GET | Both license tiers' status for the current wallet + current-generation prices + inviter address (passed as the on-chain referrer when the client stakes) |
+| `/api/bot/config` | GET/PUT | Bot integration config (OpenAI-compatible endpoint; bot accounts only; apiKey write-only, never returned) |
+| `/api/v1/events` | GET/POST | Event list (public) / create an event (organizer license required) |
+| `/api/map/events` | GET | Map event markers + per-event NFT-holder glow lists |
 
-## 10. 商业化路线（已在前期讨论定稿，代码留钩子）
+## 10. Monetization Roadmap (settled in earlier discussions; hooks left in the code)
 
-免费期（现在）：全部免费 + 限额；referral 只发名额；邀请关系记账。
-达标信号：留存稳定、地图密度、名额经常触顶、外部 API 需求出现。
-收费后：Social Pro（更高名额+更大存储）、Boost、API/Bot 套餐、发币工具抽成；
-referral 升级为净收入 ~20% 直推分成（稳定币结算），名额奖励保留。
-不卖：可信度分数、资产数字修改、免审链接、精确位置、回复门槛豁免。
+Free phase (now): everything free + quota limits; referral pays quota only; referral relationships are recorded.
+Readiness signals: stable retention, map density, quotas frequently maxed out, external API demand appearing.
+After monetization: Social Pro (higher quota + more storage), Boost, API/Bot plans, token-launch tooling revenue share;
+referral upgrades to a ~20% direct share of net revenue (settled in stablecoins), quota rewards retained.
+Never for sale: trust score, asset-figure edits, moderation-exempt links, precise location, reply-gate exemption.
 
-## 11. 已知 TODO
+## 11. Known TODOs
 
-- 地址年龄信号（Etherscan V2 + Blockscout adapter）
-- EIP-1271 合约钱包验签
-- 非 EVM 地址绑定（CAIP-10 多地址）
-- NFT 展示（≤5，主流链自动枚举 + 新链手动填）
-- 消息实时推送（当前 5s 轮询）
-- Open API Key + 限速
+- Address-age signal (Etherscan V2 + Blockscout adapters)
+- EIP-1271 contract-wallet signature verification
+- Non-EVM address binding (CAIP-10 multi-address)
+- NFT showcase (≤5; auto-enumerate on major chains + manual entry on new chains)
+- Real-time message push (currently 5s polling)
+- Open API keys + rate limiting

@@ -13,14 +13,14 @@ const USERNAME_RE = /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$/;
 export async function PUT(req: NextRequest) {
   const user = await getSessionUser();
   if (!user)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const b = (await req.json()) as Record<string, unknown>;
 
   const username = String(b.username ?? "").trim();
   if (!USERNAME_RE.test(username))
     return NextResponse.json(
-      { error: "用户名需为 2-20 位字母/数字/下划线/中文", code: "USERNAME_INVALID" },
+      { error: "Username must be 2-20 letters/digits/underscore/Chinese", code: "USERNAME_INVALID" },
       { status: 400 }
     );
 
@@ -28,7 +28,7 @@ export async function PUT(req: NextRequest) {
     .prepare("SELECT user_id FROM profiles WHERE username = ? AND user_id != ?")
     .get(username, user.id);
   if (taken)
-    return NextResponse.json({ error: "用户名已被占用", code: "USERNAME_TAKEN" }, { status: 400 });
+    return NextResponse.json({ error: "Username is taken", code: "USERNAME_TAKEN" }, { status: 400 });
 
   // Avatar: a system preset, or "custom" when an image was uploaded
   // beforehand via POST /api/avatar (validated + moderated there).
@@ -37,10 +37,10 @@ export async function PUT(req: NextRequest) {
   if (avatar === AVATAR_CUSTOM) {
     const file = path.join(process.cwd(), "data", "uploads", String(user.id));
     if (!fs.existsSync(file))
-      return NextResponse.json({ error: "头像无效", code: "AVATAR_INVALID" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid avatar", code: "AVATAR_INVALID" }, { status: 400 });
     avatarUrl = `/api/avatar/file/${user.id}?v=${Math.floor(fs.statSync(file).mtimeMs)}`;
   } else if (!AVATAR_IDS.includes(avatar)) {
-    return NextResponse.json({ error: "头像无效", code: "AVATAR_INVALID" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid avatar", code: "AVATAR_INVALID" }, { status: 400 });
   }
 
   // Gender is a one-time choice: once the profile exists it can never change.
@@ -49,14 +49,14 @@ export async function PUT(req: NextRequest) {
     ? existingProfile.gender
     : String(b.gender ?? "");
   if (!["male", "female", "other"].includes(gender))
-    return NextResponse.json({ error: "性别只能是 男/女/其他", code: "GENDER_INVALID" }, { status: 400 });
+    return NextResponse.json({ error: "Gender must be male/female/other", code: "GENDER_INVALID" }, { status: 400 });
 
   const bio = String(b.bio ?? "").slice(0, 280);
 
   const linkCheck = validateProfileLink(String(b.link ?? ""));
   if (!linkCheck.ok)
     return NextResponse.json(
-      { error: `链接不允许（${linkCheck.code}）`, code: linkCheck.code },
+      { error: `Link not allowed (${linkCheck.code})`, code: linkCheck.code },
       { status: 400 }
     );
 

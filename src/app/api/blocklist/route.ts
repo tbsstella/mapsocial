@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/session";
 
 export async function GET() {
   const me = await getSessionUser();
-  if (!me) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  if (!me) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const rows = db
     .prepare(

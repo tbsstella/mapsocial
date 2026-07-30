@@ -7,13 +7,13 @@ export async function POST(
   { params }: { params: Promise<{ address: string }> }
 ) {
   const me = await getSessionUser();
-  if (!me) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  if (!me) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const { address } = await params;
   const target = getUserByAddress(address);
-  if (!target) return NextResponse.json({ error: "用户不存在" }, { status: 404 });
+  if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (target.id === me.id)
-    return NextResponse.json({ error: "不能拉黑自己" }, { status: 400 });
+    return NextResponse.json({ error: "You can't block yourself" }, { status: 400 });
 
   const { action } = (await req.json()) as { action?: string };
 

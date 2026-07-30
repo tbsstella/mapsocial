@@ -10,13 +10,13 @@ export async function POST(
 ) {
   const user = await getSessionUser();
   if (!user)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const { id } = await params;
   const eventId = Number(id);
   const event = db.prepare("SELECT id FROM events WHERE id = ?").get(eventId);
   if (!event)
-    return NextResponse.json({ error: "活动不存在", code: "EVENT_NOT_FOUND" }, { status: 404 });
+    return NextResponse.json({ error: "Event not found", code: "EVENT_NOT_FOUND" }, { status: 404 });
 
   const body = (await req.json().catch(() => ({}))) as { action?: string };
   const action = body.action === "unfollow" ? "unfollow" : "follow";

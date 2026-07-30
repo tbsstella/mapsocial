@@ -81,27 +81,27 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
   if (me.account_type === "bot")
     return NextResponse.json(
-      { error: "机器人账号不能创建活动", code: "BOT_NO_INIT" },
+      { error: "Bot accounts can't start DMs", code: "BOT_NO_INIT" },
       { status: 403 }
     );
   if (!getProfile(me.id))
     return NextResponse.json(
-      { error: "请先完成 Profile", code: "MISSING_FIELDS" },
+      { error: "Missing required fields", code: "MISSING_FIELDS" },
       { status: 400 }
     );
   if (me.trust_score < organizerMinTrust())
     return NextResponse.json(
-      { error: "可信度分数不足，无法创建活动", code: "TRUST_TOO_LOW" },
+      { error: "Your Vibes are too low", code: "TRUST_TOO_LOW" },
       { status: 403 }
     );
 
   const license = await checkLicense(me.address, TIER_ORGANIZER);
   if (!license.ok)
     return NextResponse.json(
-      { error: "需要主办方牌照（质押 SIMN 获得）", code: "LICENSE_REQUIRED" },
+      { error: "Organizer license required (stake SIMN to get one)", code: "LICENSE_REQUIRED" },
       { status: 403 }
     );
 
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
   ).c;
   if (activeEvents >= license.slots)
     return NextResponse.json(
-      { error: "活动名额已用满（一个质押仓位 = 一个进行中的活动）", code: "EVENT_LIMIT" },
+      { error: "Event slots used up (one staked position = one live event)", code: "EVENT_LIMIT" },
       { status: 429 }
     );
 
@@ -131,14 +131,14 @@ export async function POST(req: NextRequest) {
   const bad = (msg: string) =>
     NextResponse.json({ error: msg, code: "EVENT_INVALID" }, { status: 400 });
 
-  if (title.length < 3 || title.length > 80) return bad("标题需 3-80 字");
-  if (!Number.isFinite(lat) || lat < -85 || lat > 85) return bad("纬度无效");
-  if (!Number.isFinite(lng) || lng < -180 || lng > 180) return bad("经度无效");
-  if (!Number.isInteger(startsAt) || !Number.isInteger(endsAt)) return bad("时间无效");
-  if (endsAt <= t) return bad("结束时间必须在未来");
-  if (endsAt <= startsAt) return bad("结束时间必须晚于开始时间");
-  if (endsAt - startsAt > MAX_DURATION_S) return bad("活动时长不能超过 30 天");
-  if (!HEX_COLOR_RE.test(themeColor)) return bad("主题色必须是 #rrggbb 格式");
+  if (title.length < 3 || title.length > 80) return bad("Title must be 3-80 characters");
+  if (!Number.isFinite(lat) || lat < -85 || lat > 85) return bad("Invalid latitude");
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) return bad("Invalid longitude");
+  if (!Number.isInteger(startsAt) || !Number.isInteger(endsAt)) return bad("Invalid time");
+  if (endsAt <= t) return bad("End time must be in the future");
+  if (endsAt <= startsAt) return bad("End time must be after start time");
+  if (endsAt - startsAt > MAX_DURATION_S) return bad("Event duration cannot exceed 30 days");
+  if (!HEX_COLOR_RE.test(themeColor)) return bad("Theme color must be in #rrggbb format");
 
   // Optional NFT gate
   let nft: { chain: string; standard: string; contract: string; tokenId: string | null } | null =
@@ -148,11 +148,12 @@ export async function POST(req: NextRequest) {
     const chainKey = String(b.nftChain ?? "");
     const standard = String(b.nftStandard ?? "erc721");
     const tokenId = b.nftTokenId != null ? String(b.nftTokenId) : null;
-    if (!ADDRESS_RE.test(contract)) return bad("NFT 合约地址无效");
-    if (!APP_CHAINS.some((c) => c.key === chainKey)) return bad("NFT 所在链不支持");
-    if (!["erc721", "erc1155"].includes(standard)) return bad("NFT 标准只支持 erc721/erc1155");
+    if (!ADDRESS_RE.test(contract)) return bad("Invalid NFT contract address");
+    if (!APP_CHAINS.some((c) => c.key === chainKey)) return bad("Unsupported NFT chain");
+    if (!["erc721", "erc1155"].includes(standard))
+      return bad("Only erc721/erc1155 NFT standards are supported");
     if (standard === "erc1155" && (tokenId == null || !/^\d+$/.test(tokenId)))
-      return bad("erc1155 必须提供数字 tokenId");
+      return bad("erc1155 requires a numeric tokenId");
     nft = { chain: chainKey, standard, contract, tokenId };
   }
 
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
     const check = validateProfileLink(String(b.link));
     if (!check.ok)
       return NextResponse.json(
-        { error: `链接不允许（${check.code}）`, code: check.code },
+        { error: `Link not allowed (${check.code})`, code: check.code },
         { status: 400 }
       );
     link = check.url ?? null;

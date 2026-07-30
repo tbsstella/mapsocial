@@ -31,27 +31,27 @@ function sniffImageType(buf: Buffer): string | null {
 export async function POST(req: NextRequest) {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const b = (await req.json()) as { data?: string };
   const dataUrl = String(b.data ?? "");
   const m = dataUrl.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
   if (!m)
-    return NextResponse.json({ error: "图片格式无效", code: "AVATAR_INVALID" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid avatar", code: "AVATAR_INVALID" }, { status: 400 });
 
   const bytes = Buffer.from(m[1], "base64");
   if (bytes.length > MAX_BYTES)
-    return NextResponse.json({ error: "图片过大", code: "AVATAR_TOO_LARGE" }, { status: 400 });
+    return NextResponse.json({ error: "Image too large", code: "AVATAR_TOO_LARGE" }, { status: 400 });
 
   // Never trust the declared mime type; sniff the real bytes.
   const mime = sniffImageType(bytes);
   if (!mime)
-    return NextResponse.json({ error: "图片格式无效", code: "AVATAR_INVALID" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid avatar", code: "AVATAR_INVALID" }, { status: 400 });
 
   const moderation = await checkImage(bytes, mime);
   if (!moderation.ok)
     return NextResponse.json(
-      { error: "图片未通过合规审核", code: "AVATAR_NSFW" },
+      { error: "Image failed the compliance check", code: "AVATAR_NSFW" },
       { status: 400 }
     );
 

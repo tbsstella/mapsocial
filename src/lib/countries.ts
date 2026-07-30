@@ -52,7 +52,7 @@ export const COUNTRIES: Country[] = [
   { code: "KE", name: "Kenya", lat: 0.5, lng: 37.9 },
   { code: "RU", name: "Russia", lat: 61.5, lng: 105.3 },
   { code: "KZ", name: "Kazakhstan", lat: 48.2, lng: 66.9 },
-  { code: "OTHER", name: "Other / 其他", lat: 0, lng: 0 },
+  { code: "OTHER", name: "Other", lat: 0, lng: 0 },
 ];
 
 export function countryByCode(code: string | null): Country | undefined {

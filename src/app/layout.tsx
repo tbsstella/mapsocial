@@ -4,8 +4,7 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "MapSocial — Wallet Social Map",
-  description:
-    "Connect your wallet and meet real on-chain users on the map / 连接钱包，在地图上遇见真实的链上用户",
+  description: "Connect your wallet and meet real on-chain users on the map",
 };
 
 // App-like viewport for mobile wallet in-app browsers: edge-to-edge with
@@ -21,7 +20,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="en">
       <body className="antialiased">
         <Providers>{children}</Providers>
       </body>

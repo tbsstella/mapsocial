@@ -18,7 +18,7 @@ import {
 export async function GET() {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const [organizer, bot, organizerPrice, botPrice] = await Promise.all([
     checkLicense(me.address, TIER_ORGANIZER),

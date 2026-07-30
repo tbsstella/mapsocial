@@ -1,15 +1,12 @@
-# MapSocial — 钱包社交地图 DApp（EVM）
+# MapSocial — Wallet-Based Social Map DApp (EVM)
 
-以极简地图为主界面的钱包社交网络：连接钱包签名登录（SIWE，零 gas），建立
-Profile 后出现在地图上，点击头像查看资料并发私信。可信度分数由五条 EVM 链
-的链上数据统一计算，决定每日可主动私信（搭讪）的人数；邀请好友可获得额外
-搭讪名额。当前阶段完全免费。
+A wallet-native social network built around a minimalist map: connect a wallet and sign in with SIWE (zero gas), create a Profile to appear on the map, then click avatars to view profiles and send direct messages. A trust score is computed from on-chain data across five EVM chains and determines how many people you can proactively DM (cold-open) per day; inviting friends earns extra DM quota. The current phase is completely free.
 
-## 支持的链（统一打分 / 统一资产汇总）
+## Supported Chains (unified scoring / unified asset aggregation)
 
-同一地址在所有 EVM 链上通用，因此一次签名登录即覆盖全部链：
+The same address works across all EVM chains, so a single sign-in covers every chain:
 
-| 链 | Chain ID | 打分权重 |
+| Chain | Chain ID | Scoring Weight |
 |---|---|---|
 | Ethereum | 1 | 1.0 |
 | Polygon | 137 | 0.8 |
@@ -17,53 +14,53 @@ Profile 后出现在地图上，点击头像查看资料并发私信。可信度
 | Robinhood Chain | 4663 | 0.5 |
 | HyperEVM | 999 | 0.5 |
 
-## 快速开始
+## Quick Start
 
 ```bash
 npm install
 npm run dev
-# 打开 http://localhost:3000，浏览器需安装任意 EVM 钱包插件
+# Open http://localhost:3000 — any EVM wallet browser extension is required
 ```
 
-数据保存在本地 SQLite（`data/app.db`），无需额外服务。
+Data is stored in local SQLite (`data/app.db`); no extra services needed.
 
-## 环境变量（全部可选）
+## Environment Variables (all optional)
 
-| 变量 | 说明 |
+| Variable | Description |
 |---|---|
-| `ALCHEMY_API_KEY` | Alchemy key，一个 key 统一五条链的服务端 RPC（评分/资产/牌照/打赏验证）；未配置时用公共节点 |
-| `NEXT_PUBLIC_ALCHEMY_API_KEY` | 浏览器端 RPC（余额/兑换报价）用的 Alchemy key，会暴露给前端，建议按域名加白；可与上面同一个 key |
-| `ETHEREUM_RPC` / `POLYGON_RPC` / `ARBITRUM_RPC` / `ROBINHOOD_RPC` / `HYPEREVM_RPC` | 单独覆盖某条链的 RPC（优先级高于 Alchemy） |
-| `PRICE_ETH` / `PRICE_POL` / `PRICE_HYPE` | CoinGecko 不可用时的兜底价格 |
-| `IP_CHECK_URL` | IP 情报服务地址（默认 ip-api.com 免费接口，生产建议换商业服务） |
-| `LICENSE_STAKE_CONTRACT` | LicenseStake 合约地址（未配置时活动创建走 dev 放行） |
-| `EVENT_MIN_TRUST` | 创建活动的最低可信度分数（默认 0） |
-| `OPENAI_API_KEY` | 头像图片合规审核（omni-moderation）；**生产必须配置**，未配置时上传不做内容审核 |
-| `UNISWAP_API_KEY` | Uniswap Trading API key（内置 SIMN 兑换的报价与组交易，覆盖 v2/v3/v4 全部池子）；未配置时回退到链上 Uniswap V2 报价 |
+| `ALCHEMY_API_KEY` | Alchemy key; a single key serves server-side RPC for all five chains (scoring / assets / licenses / tip verification). Falls back to public nodes if unset |
+| `NEXT_PUBLIC_ALCHEMY_API_KEY` | Alchemy key for browser-side RPC (balances / swap quotes). Exposed to the frontend, so domain allowlisting is recommended; can be the same key as above |
+| `ETHEREUM_RPC` / `POLYGON_RPC` / `ARBITRUM_RPC` / `ROBINHOOD_RPC` / `HYPEREVM_RPC` | Override the RPC for an individual chain (takes precedence over Alchemy) |
+| `PRICE_ETH` / `PRICE_POL` / `PRICE_HYPE` | Fallback prices when CoinGecko is unavailable |
+| `IP_CHECK_URL` | IP intelligence service URL (defaults to the free ip-api.com endpoint; a commercial service is recommended in production) |
+| `LICENSE_STAKE_CONTRACT` | LicenseStake contract address (if unset, event creation is allowed in dev mode) |
+| `EVENT_MIN_TRUST` | Minimum trust score required to create an event (default 0) |
+| `OPENAI_API_KEY` | Avatar image content moderation (omni-moderation); **required in production** — without it, uploads are not moderated |
+| `UNISWAP_API_KEY` | Uniswap Trading API key (quotes and transaction building for the built-in SIMN swap, covering all v2/v3/v4 pools); falls back to on-chain Uniswap V2 quotes if unset |
 
-## 核心规则
+## Core Rules
 
-- 登录：SIWE 签名验证地址所有权，不发起交易、不收 gas
-- 可信度（0-100）：链上活跃度(50) + 资产(30) + 多链覆盖(20) − 被拉黑扣分，每 24h 刷新，不可购买或修改
-- 搭讪名额（日额度，每日 00:00 UTC 重置）：可信度 0-29→1、30-59→3、60-79→8、80+→15，加邀请奖励
-- 首条私信后对方回复前不能再发；机器人账号不能主动私信
-- 资产展示：链上只读，可见/模糊/不可见三档，数字不可修改
-- 位置：分享时仅存约 11 公里网格坐标（客户端先取整），否则只显示国别
-- 链接：仅 https，过滤 IP 直连 / punycode / 短链等
-- 邀请：好友完成 Profile 后，邀请人 +3 / 被邀请人 +2 搭讪名额，30 天有效，有每周与累计上限
-- VPN：登录/每日按 IP 情报检测代理与机房 IP，检测到时在对外 Profile 上标注「使用 VPN 中」
-- 多语言：内置 9 种语言（中/英/西/法/德/葡/俄/日/韩），默认跟随浏览器语言；登录后在 Profile → 权限中切换
-- 距离单位：按用户所在国家自动使用公里或英里（US/GB 用英里）
-- 国家：由服务端按登录 IP 自动识别（每日刷新），用户不可修改；用户只选择是否分享模糊位置
-- 钱包资产模糊显示：只透出金额位数（如 `$$$$$` 表示五位数美元），不暴露具体数字
-- 牌照质押：主办方 / Bot 运营方质押平台 meme 币 **SilMina (SIMN)**（Ethereum：`0x2e3f…4235`）自助开权限——2000 SIMN=主办方、1000 SIMN=Bot；质押时一次性收 5%（3% 平台 + 1% 邀请人 + 1% 返还），随时退回 95% 本金（`contracts/LicenseStake.sol`）
-- 创建中心：底部 Dock「创建」入口内置 Create Event / Create Bot 按钮——显示 SIMN 余额与 Uniswap 兑换入口，一键授权 + 质押（邀请人地址自动作为链上 referrer），持牌后直接在地图中心位置发布活动；Bot 账号发消息时链上校验运营牌照（`GET /api/license`）
-- 活动：持牌主办方在地图上发布活动（1 仓位 = 1 个进行中活动），可设 NFT 门槛——活动期间持有该 NFT 的用户在地图上以活动主题色发光点亮，方便同场的人互相找到
-- 打赏：聊天中可用 SIMN 打赏对方，钱包直转（平台不经手、不抽成、数量不限，只要余额足够）；服务端验证链上交易后在聊天里记录打赏消息，打赏不占搭讪名额、不受回复门槛限制
+- Login: SIWE signature proves address ownership — no transactions, no gas
+- Trust score (0–100): on-chain activity (50) + assets (30) + multi-chain coverage (20) − block penalties; refreshed every 24h, cannot be bought or edited
+- Cold-open quota (daily, resets at 00:00 UTC): trust 0–29 → 1, 30–59 → 3, 60–79 → 8, 80+ → 15, plus referral bonuses
+- After the first DM, you cannot send another until the recipient replies; bot accounts cannot initiate DMs
+- Asset display: read-only on-chain data with three visibility levels (visible / blurred / hidden); numbers cannot be edited
+- Location: when shared, only a ~11 km grid coordinate is stored (rounded client-side); otherwise only the country is shown
+- Links: https only, with filtering of raw IPs / punycode / URL shorteners, etc.
+- Referrals: once an invited friend completes their Profile, the inviter gets +3 and the invitee +2 cold-open quota, valid for 30 days, with weekly and lifetime caps
+- VPN: proxy and datacenter IPs are detected via IP intelligence at login and daily; when detected, the public Profile is labeled "Using VPN"
+- Localization: 9 built-in languages (Chinese / English / Spanish / French / German / Portuguese / Russian / Japanese / Korean), following the browser language by default; switchable after login under Profile → Permissions
+- Distance units: kilometers or miles chosen automatically by the user's country (US/GB use miles)
+- Country: detected server-side from the login IP (refreshed daily) and cannot be edited by the user; users only choose whether to share their fuzzy location
+- Blurred wallet assets: only the number of digits is revealed (e.g. `$$$$$` means a five-digit USD amount), never the exact figure
+- License staking: event hosts / bot operators stake the platform meme coin **SilMina (SIMN)** (Ethereum: `0x2e3f…4235`) to self-serve permissions — 2000 SIMN = host, 1000 SIMN = bot; a one-time 5% fee is charged at staking (3% platform + 1% referrer + 1% rebate), and 95% of the principal can be withdrawn at any time (`contracts/LicenseStake.sol`)
+- Create hub: the "Create" entry in the bottom Dock provides Create Event / Create Bot buttons — showing SIMN balance and a Uniswap swap entry, with one-click approve + stake (the referrer address is automatically set as the on-chain referrer); once licensed, events can be published directly at the map center. When a bot account sends messages, its operator license is verified on-chain (`GET /api/license`)
+- Events: licensed hosts publish events on the map (1 slot = 1 active event) and can set an NFT requirement — during the event, users holding that NFT glow on the map in the event's theme color, making it easy for attendees to find each other
+- Tipping: tip the other person with SIMN in chat via direct wallet transfer (the platform never takes custody or a cut, and there is no limit as long as the balance suffices); after server-side verification of the on-chain transaction, a tip message is recorded in the chat. Tips do not consume cold-open quota and are not subject to the reply gate
 
-详细设计见 [docs/DEV.md](docs/DEV.md)。
+See [docs/DEV.md](docs/DEV.md) for the detailed design.
 
-## 技术栈
+## Tech Stack
 
-Next.js (App Router) · TypeScript · Tailwind CSS · wagmi + viem（SIWE）·
-better-sqlite3 · MapLibre GL（CARTO 极简底图）
+Next.js (App Router) · TypeScript · Tailwind CSS · wagmi + viem (SIWE) ·
+better-sqlite3 · MapLibre GL (CARTO minimalist basemap)

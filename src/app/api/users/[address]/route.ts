@@ -13,12 +13,12 @@ export async function GET(
   const target = getUserByAddress(address);
   const profile = target ? getProfile(target.id) : undefined;
   if (!target || !profile) {
-    return NextResponse.json({ error: "用户不存在", code: "USER_NOT_FOUND" }, { status: 404 });
+    return NextResponse.json({ error: "User not found", code: "USER_NOT_FOUND" }, { status: 404 });
   }
 
   const isMe = me?.id === target.id;
   if (profile.profile_visibility === "hidden" && !isMe) {
-    return NextResponse.json({ error: "该用户不可见", code: "PROFILE_HIDDEN" }, { status: 404 });
+    return NextResponse.json({ error: "This user is not visible", code: "PROFILE_HIDDEN" }, { status: 404 });
   }
 
   const blockedByMe = me ? isBlocked(me.id, target.id) : false;

@@ -27,7 +27,7 @@ export interface DistanceParts {
 /**
  * Coarse, bucketed distance in the viewer's unit. All stored coordinates are
  * already fuzzed (~11 km grid or country centroid), so values stay approximate
- * by design. Rendering (约/~, 公里/km/mi) is handled by the i18n layer.
+ * by design. Rendering ("~", km/mi labels) is handled by the i18n layer.
  */
 export function distanceParts(km: number, unit: DistanceUnit): DistanceParts {
   const v = unit === "mi" ? km * 0.621371 : km;

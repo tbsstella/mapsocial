@@ -15,14 +15,14 @@ const NATIVE = "0x0000000000000000000000000000000000000000";
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const key = process.env.UNISWAP_API_KEY;
   if (!key) return NextResponse.json({ source: "onchain" });
 
   const b = (await req.json()) as { amountOut?: string; tokenIn?: string; swapper?: string };
   if (!/^\d+$/.test(String(b.amountOut)) || !/^0x[0-9a-fA-F]{40}$/.test(String(b.swapper)))
-    return NextResponse.json({ error: "参数无效", code: "MISSING_FIELDS" }, { status: 400 });
+    return NextResponse.json({ error: "Missing required fields", code: "MISSING_FIELDS" }, { status: 400 });
 
   const r = await fetch(`${TRADE_API}/quote`, {
     method: "POST",

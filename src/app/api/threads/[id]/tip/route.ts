@@ -36,7 +36,7 @@ export async function POST(
 ) {
   const me = await getSessionUser();
   if (!me)
-    return NextResponse.json({ error: "未登录", code: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json({ error: "Not signed in", code: "UNAUTHORIZED" }, { status: 401 });
 
   const { id } = await params;
   const t = db.prepare("SELECT id, user_a, user_b FROM threads WHERE id = ?").get(Number(id)) as
@@ -44,14 +44,14 @@ export async function POST(
     | undefined;
   if (!t || (t.user_a !== me.id && t.user_b !== me.id))
     return NextResponse.json(
-      { error: "会话不存在", code: "THREAD_NOT_FOUND" },
+      { error: "Conversation not found", code: "THREAD_NOT_FOUND" },
       { status: 404 }
     );
 
   const otherId = t.user_a === me.id ? t.user_b : t.user_a;
   if (isBlocked(me.id, otherId) || isBlocked(otherId, me.id))
     return NextResponse.json(
-      { error: "无法在该会话中打赏", code: "CANNOT_SEND" },
+      { error: "You can't send messages in this conversation", code: "CANNOT_SEND" },
       { status: 403 }
     );
 
@@ -59,14 +59,14 @@ export async function POST(
   const txHash = String(body.txHash ?? "").toLowerCase();
   if (!TX_HASH_RE.test(txHash))
     return NextResponse.json(
-      { error: "交易哈希无效", code: "TIP_TX_INVALID" },
+      { error: "Invalid transaction hash", code: "TIP_TX_INVALID" },
       { status: 400 }
     );
 
   const dup = db.prepare("SELECT 1 FROM messages WHERE tip_tx = ?").get(txHash);
   if (dup)
     return NextResponse.json(
-      { error: "该交易已记录过打赏", code: "TIP_TX_USED" },
+      { error: "This transaction was already recorded", code: "TIP_TX_USED" },
       { status: 409 }
     );
 
@@ -87,12 +87,12 @@ export async function POST(
   }
   if (!receipt)
     return NextResponse.json(
-      { error: "链上未找到该交易", code: "TIP_TX_NOT_FOUND" },
+      { error: "Transaction not found on-chain", code: "TIP_TX_NOT_FOUND" },
       { status: 400 }
     );
   if (receipt.status !== "success")
     return NextResponse.json(
-      { error: "交易执行失败", code: "TIP_TX_FAILED" },
+      { error: "Transaction failed on-chain", code: "TIP_TX_FAILED" },
       { status: 400 }
     );
 
@@ -109,7 +109,7 @@ export async function POST(
   );
   if (transfers.length === 0)
     return NextResponse.json(
-      { error: "该交易不是发给对方的 SIMN 转账", code: "TIP_TX_MISMATCH" },
+      { error: "Not a SIMN transfer to this person", code: "TIP_TX_MISMATCH" },
       { status: 400 }
     );
 
@@ -123,7 +123,7 @@ export async function POST(
   } catch {
     // unique index race on tip_tx
     return NextResponse.json(
-      { error: "该交易已记录过打赏", code: "TIP_TX_USED" },
+      { error: "This transaction was already recorded", code: "TIP_TX_USED" },
       { status: 409 }
     );
   }
