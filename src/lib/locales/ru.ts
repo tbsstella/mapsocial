@@ -23,6 +23,8 @@ export const ru: Record<TKey, string> = {
   "login.rejected": "Вы отменили подпись",
   "login.failed": "Не удалось войти",
   "login.noAddress": "Не удалось получить адрес кошелька",
+  "login.wcNotConfigured":
+    "WalletConnect не настроен — задайте NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID в переменных окружения",
   "login.siweStatement":
     "Вход в MapSocial: подпись лишь подтверждает владение адресом. Без транзакций и комиссий.",
 

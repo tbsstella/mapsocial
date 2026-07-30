@@ -39,6 +39,8 @@ Data is stored in local SQLite (`data/app.db`); no extra services needed.
 | `OPENAI_API_KEY` | Avatar image content moderation (omni-moderation); **required in production** — without it, uploads are not moderated |
 | `UNISWAP_API_KEY` | Uniswap Trading API key (quotes and transaction building for the built-in SIMN swap, covering all v2/v3/v4 pools); falls back to on-chain Uniswap V2 quotes if unset |
 
+Locally these go in `.env.local`. On Vercel, `.env.local` is **not** used — add each variable under Project Settings → Environment Variables and redeploy. If `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is missing, the login card shows a clear "WalletConnect isn't configured" error when the WalletConnect option is clicked.
+
 ## Core Rules
 
 - Login: SIWE signature proves address ownership — no transactions, no gas

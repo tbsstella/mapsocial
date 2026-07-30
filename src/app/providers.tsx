@@ -17,8 +17,10 @@ const rpc = (subdomain: string) =>
 // WalletConnect lets mobile and non-extension wallets connect via QR code /
 // deep link. Free project id: https://cloud.reown.com
 // The connector is always registered so the option shows in the login card;
-// with the placeholder id the WC SDK only fails on first connect (it is
-// created lazily), and the login flow surfaces a clear error for that.
+// when the id is missing the login card short-circuits the click with a clear
+// error instead of opening a QR modal that can never load (the relay answers
+// 403 for the placeholder id).
+export const WC_CONFIGURED = !!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 const wcProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "unconfigured";
 

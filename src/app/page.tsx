@@ -24,6 +24,7 @@ import {
 import { Avatar, avatarKind } from "@/components/Avatar";
 import { useMe } from "@/hooks/useMe";
 import { useSiweLogin } from "@/hooks/useSiweLogin";
+import { WC_CONFIGURED } from "@/app/providers";
 import { haversineKm, type DistanceUnit } from "@/lib/geo";
 import { countryByCode } from "@/lib/countries";
 import { useI18n, LANGS, type Lang } from "@/lib/i18n";
@@ -93,6 +94,21 @@ export default function HomePage() {
     invalidate();
   });
   const wallets = useWalletChoices();
+  // WalletConnect stays listed even without a project id, but clicking it
+  // then must show this error instead of opening a QR modal that stays empty.
+  const [wcError, setWcError] = useState(false);
+
+  const pickWallet = useCallback(
+    (c: Connector) => {
+      if (c.type === "walletConnect" && !WC_CONFIGURED) {
+        setWcError(true);
+        return;
+      }
+      setWcError(false);
+      login("human", c);
+    },
+    [login]
+  );
 
   const { data: mapData } = useQuery<{ users: MapUser[] }>({
     queryKey: ["mapUsers"],
@@ -350,7 +366,11 @@ export default function HomePage() {
               {t("login.tagline")}
             </p>
 
-            {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+            {(wcError || error) && (
+              <p className="mt-3 text-sm text-red-400">
+                {wcError ? t("login.wcNotConfigured") : error}
+              </p>
+            )}
 
             <p className="mt-6 text-xs font-bold text-slate-400">
               {t("login.pickWallet")}
@@ -359,7 +379,7 @@ export default function HomePage() {
               {wallets.map((c) => (
                 <button
                   key={c.uid}
-                  onClick={() => login("human", c)}
+                  onClick={() => pickWallet(c)}
                   disabled={busy}
                   className="glass pressable flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-slate-200 disabled:opacity-50"
                 >

@@ -20,6 +20,8 @@ export const zh = {
   "login.rejected": "你取消了签名",
   "login.failed": "登录失败",
   "login.noAddress": "无法获取钱包地址",
+  "login.wcNotConfigured":
+    "WalletConnect 未配置，请在环境变量中设置 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID",
   "login.siweStatement": "登录 MapSocial：仅签名验证地址所有权，不产生任何链上交易或费用。",
 
   "topbar.onMap": "{n} 位用户在星图上",

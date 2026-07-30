@@ -23,6 +23,8 @@ export const ko: Record<TKey, string> = {
   "login.rejected": "서명을 취소했습니다",
   "login.failed": "로그인 실패",
   "login.noAddress": "지갑 주소를 가져올 수 없습니다",
+  "login.wcNotConfigured":
+    "WalletConnect가 설정되지 않았습니다. 환경 변수에 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID를 설정하세요",
   "login.siweStatement":
     "MapSocial 로그인: 서명은 주소 소유 확인용이며 온체인 거래나 수수료가 없습니다.",
 

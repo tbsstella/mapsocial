@@ -23,6 +23,8 @@ export const es: Record<TKey, string> = {
   "login.rejected": "Cancelaste la firma",
   "login.failed": "Error al iniciar sesión",
   "login.noAddress": "No se pudo obtener la dirección",
+  "login.wcNotConfigured":
+    "WalletConnect no está configurado: define NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID en las variables de entorno",
   "login.siweStatement":
     "Inicia sesión en MapSocial: la firma solo prueba la propiedad de la dirección. Sin transacciones ni comisiones.",
 

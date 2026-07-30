@@ -23,6 +23,8 @@ export const ja: Record<TKey, string> = {
   "login.rejected": "署名をキャンセルしました",
   "login.failed": "ログインに失敗しました",
   "login.noAddress": "ウォレットアドレスを取得できません",
+  "login.wcNotConfigured":
+    "WalletConnect が未設定です。環境変数に NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID を設定してください",
   "login.siweStatement":
     "MapSocialへのログイン：署名はアドレスの所有確認のみで、オンチェーン取引や手数料は発生しません。",
 

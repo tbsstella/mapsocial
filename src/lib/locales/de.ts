@@ -23,6 +23,8 @@ export const de: Record<TKey, string> = {
   "login.rejected": "Du hast die Signatur abgebrochen",
   "login.failed": "Anmeldung fehlgeschlagen",
   "login.noAddress": "Wallet-Adresse konnte nicht abgerufen werden",
+  "login.wcNotConfigured":
+    "WalletConnect ist nicht konfiguriert — setze NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in den Umgebungsvariablen",
   "login.siweStatement":
     "Anmeldung bei MapSocial: Die Signatur beweist nur den Besitz der Adresse. Keine On-Chain-Transaktion, keine Gebühr.",
 
