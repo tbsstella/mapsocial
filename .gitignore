@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/uploads/
+
+# SDK is not published yet
+sdk/
+.env
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
