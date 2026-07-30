@@ -2,8 +2,32 @@
 
 import { useCallback, useState } from "react";
 import { useAccount, useConnect, useSignMessage } from "wagmi";
+import type { Connector } from "wagmi";
 import { createSiweMessage } from "viem/siwe";
 import { apiErrorText, useI18n } from "@/lib/i18n";
+
+/**
+ * Pick the first connector that actually has a provider. EIP-6963-announced
+ * wallets (real extensions) are preferred over the bare "injected" fallback,
+ * which exists even when no wallet is installed and would otherwise throw
+ * wagmi's raw "Provider not found" only after a slow connect attempt.
+ */
+async function pickConnector(connectors: readonly Connector[]): Promise<Connector | null> {
+  const ordered = [
+    ...connectors.filter((c) => c.id !== "injected"),
+    ...connectors.filter((c) => c.id === "injected"),
+  ];
+  for (const c of ordered) {
+    const provider = await c.getProvider().catch(() => null);
+    if (provider) return c;
+  }
+  return null;
+}
+
+/** Parse a JSON response defensively: HTML error pages must not crash the flow. */
+async function readJson<T>(res: Response): Promise<T | null> {
+  return (await res.json().catch(() => null)) as T | null;
+}
 
 export function useSiweLogin(onSuccess?: (isNew: boolean) => void) {
   const { address, isConnected } = useAccount();
@@ -18,23 +42,30 @@ export function useSiweLogin(onSuccess?: (isNew: boolean) => void) {
       setBusy(true);
       setError(null);
       try {
+        // Fetch the nonce in parallel with the wallet connect popup so the
+        // signature prompt appears as soon as the wallet is connected.
+        const noncePromise = fetch("/api/auth/nonce", { method: "POST" }).catch(() => null);
+
         let addr = address;
         if (!isConnected || !addr) {
-          const injectedConnector = connectors[0];
-          if (!injectedConnector) throw new Error(t("login.noWallet"));
-          const result = await connectAsync({ connector: injectedConnector });
+          const connector = await pickConnector(connectors);
+          if (!connector) throw new Error(t("login.noWallet"));
+          const result = await connectAsync({ connector });
           addr = result.accounts[0];
         }
         if (!addr) throw new Error(t("login.noAddress"));
 
-        const nonceRes = await fetch("/api/auth/nonce", { method: "POST" });
-        const { nonce } = (await nonceRes.json()) as { nonce: string };
+        const nonceRes = await noncePromise;
+        const nonceData = nonceRes?.ok
+          ? await readJson<{ nonce?: string }>(nonceRes)
+          : null;
+        if (!nonceData?.nonce) throw new Error(t("login.failed"));
 
         const message = createSiweMessage({
           address: addr,
           chainId: 1,
           domain: window.location.host,
-          nonce,
+          nonce: nonceData.nonce,
           uri: window.location.origin,
           version: "1",
           statement: t("login.siweStatement"),
@@ -48,19 +79,21 @@ export function useSiweLogin(onSuccess?: (isNew: boolean) => void) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message, signature, accountType, refCode }),
         });
-        const data = (await verifyRes.json()) as {
+        const data = await readJson<{
           ok?: boolean;
           isNew?: boolean;
           error?: string;
           code?: string;
-        };
-        if (!verifyRes.ok || !data.ok) throw new Error(apiErrorText(data, t));
+        }>(verifyRes);
+        if (!verifyRes.ok || !data?.ok) throw new Error(apiErrorText(data, t));
 
         localStorage.removeItem("refCode");
         onSuccess?.(data.isNew ?? false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : t("login.failed");
-        setError(msg.includes("User rejected") ? t("login.rejected") : msg);
+        if (msg.includes("User rejected")) setError(t("login.rejected"));
+        else if (msg.includes("Provider not found")) setError(t("login.noWallet"));
+        else setError(msg);
       } finally {
         setBusy(false);
       }
