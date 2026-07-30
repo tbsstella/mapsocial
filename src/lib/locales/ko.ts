@@ -19,6 +19,7 @@ export const ko: Record<TKey, string> = {
   "login.waitingSig": "지갑 서명 대기 중…",
   "login.chains": "Ethereum · Polygon · Arbitrum · Robinhood · HyperEVM",
   "login.noWallet": "브라우저 지갑이 없습니다. 지갑 확장 프로그램을 설치해 주세요.",
+  "login.pickWallet": "지갑 선택",
   "login.rejected": "서명을 취소했습니다",
   "login.failed": "로그인 실패",
   "login.noAddress": "지갑 주소를 가져올 수 없습니다",

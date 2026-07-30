@@ -19,6 +19,7 @@ export const ja: Record<TKey, string> = {
   "login.waitingSig": "ウォレットの署名を待っています…",
   "login.chains": "Ethereum · Polygon · Arbitrum · Robinhood · HyperEVM",
   "login.noWallet": "ブラウザウォレットが見つかりません。拡張機能をインストールしてください。",
+  "login.pickWallet": "ウォレットを選択",
   "login.rejected": "署名をキャンセルしました",
   "login.failed": "ログインに失敗しました",
   "login.noAddress": "ウォレットアドレスを取得できません",

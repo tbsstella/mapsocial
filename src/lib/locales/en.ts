@@ -19,6 +19,7 @@ export const en: Record<TKey, string> = {
   "login.waitingSig": "Waiting for wallet signature…",
   "login.chains": "Ethereum · Polygon · Arbitrum · Robinhood · HyperEVM",
   "login.noWallet": "No browser wallet detected. Please install a wallet extension.",
+  "login.pickWallet": "Choose your wallet",
   "login.rejected": "You cancelled the signature",
   "login.failed": "Sign-in failed",
   "login.noAddress": "Could not get wallet address",

@@ -30,7 +30,7 @@ async function readJson<T>(res: Response): Promise<T | null> {
 }
 
 export function useSiweLogin(onSuccess?: (isNew: boolean) => void) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector: activeConnector } = useAccount();
   const { connectAsync, connectors } = useConnect();
   const { signMessageAsync } = useSignMessage();
   const { t } = useI18n();
@@ -38,7 +38,7 @@ export function useSiweLogin(onSuccess?: (isNew: boolean) => void) {
   const [error, setError] = useState<string | null>(null);
 
   const login = useCallback(
-    async (accountType: "human" | "bot") => {
+    async (accountType: "human" | "bot", chosen?: Connector) => {
       setBusy(true);
       setError(null);
       try {
@@ -47,8 +47,10 @@ export function useSiweLogin(onSuccess?: (isNew: boolean) => void) {
         const noncePromise = fetch("/api/auth/nonce", { method: "POST" }).catch(() => null);
 
         let addr = address;
-        if (!isConnected || !addr) {
-          const connector = await pickConnector(connectors);
+        const needConnect =
+          !isConnected || !addr || (chosen && activeConnector?.id !== chosen.id);
+        if (needConnect) {
+          const connector = chosen ?? (await pickConnector(connectors));
           if (!connector) throw new Error(t("login.noWallet"));
           const result = await connectAsync({ connector });
           addr = result.accounts[0];
@@ -98,7 +100,16 @@ export function useSiweLogin(onSuccess?: (isNew: boolean) => void) {
         setBusy(false);
       }
     },
-    [address, isConnected, connectAsync, connectors, signMessageAsync, onSuccess, t]
+    [
+      address,
+      isConnected,
+      activeConnector,
+      connectAsync,
+      connectors,
+      signMessageAsync,
+      onSuccess,
+      t,
+    ]
   );
 
   return { login, busy, error };

@@ -19,6 +19,7 @@ export const ru: Record<TKey, string> = {
   "login.waitingSig": "Ожидание подписи кошелька…",
   "login.chains": "Ethereum · Polygon · Arbitrum · Robinhood · HyperEVM",
   "login.noWallet": "Кошелёк не найден. Установите расширение кошелька.",
+  "login.pickWallet": "Выберите кошелёк",
   "login.rejected": "Вы отменили подпись",
   "login.failed": "Не удалось войти",
   "login.noAddress": "Не удалось получить адрес кошелька",

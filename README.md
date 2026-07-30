@@ -30,6 +30,7 @@ Data is stored in local SQLite (`data/app.db`); no extra services needed.
 |---|---|
 | `ALCHEMY_API_KEY` | Alchemy key; a single key serves server-side RPC for all five chains (scoring / assets / licenses / tip verification). Falls back to public nodes if unset |
 | `NEXT_PUBLIC_ALCHEMY_API_KEY` | Alchemy key for browser-side RPC (balances / swap quotes). Exposed to the frontend, so domain allowlisting is recommended; can be the same key as above |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project id (free at [cloud.reown.com](https://cloud.reown.com)); enables mobile / non-extension wallets via QR code or deep link. Without it, only browser-extension wallets can connect |
 | `ETHEREUM_RPC` / `POLYGON_RPC` / `ARBITRUM_RPC` / `ROBINHOOD_RPC` / `HYPEREVM_RPC` | Override the RPC for an individual chain (takes precedence over Alchemy) |
 | `PRICE_ETH` / `PRICE_POL` / `PRICE_HYPE` | Fallback prices when CoinGecko is unavailable |
 | `IP_CHECK_URL` | IP intelligence service URL (defaults to the free ip-api.com endpoint; a commercial service is recommended in production) |

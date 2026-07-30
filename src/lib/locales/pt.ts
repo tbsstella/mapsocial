@@ -19,6 +19,7 @@ export const pt: Record<TKey, string> = {
   "login.waitingSig": "Aguardando assinatura da carteira…",
   "login.chains": "Ethereum · Polygon · Arbitrum · Robinhood · HyperEVM",
   "login.noWallet": "Nenhuma carteira detectada. Instale uma extensão de carteira.",
+  "login.pickWallet": "Escolha sua wallet",
   "login.rejected": "Você cancelou a assinatura",
   "login.failed": "Falha no login",
   "login.noAddress": "Não foi possível obter o endereço",

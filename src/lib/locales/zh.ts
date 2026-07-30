@@ -16,6 +16,7 @@ export const zh = {
   "login.waitingSig": "等待钱包签名…",
   "login.chains": "支持 Ethereum · Polygon · Arbitrum · Robinhood · HyperEVM",
   "login.noWallet": "未检测到浏览器钱包，请先安装钱包插件",
+  "login.pickWallet": "选择钱包",
   "login.rejected": "你取消了签名",
   "login.failed": "登录失败",
   "login.noAddress": "无法获取钱包地址",

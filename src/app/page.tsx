@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useConnect, type Connector } from "wagmi";
 import { useRouter } from "next/navigation";
 import { MapView, type MapUser, type MapEvent } from "@/components/MapView";
 import { CreateSheet } from "@/components/CreateSheet";
@@ -32,12 +33,46 @@ const MAX_OPEN_CHATS = 5;
 
 type Panel = "none" | "threads" | "settings" | "nearby" | "cluster" | "create";
 
+/**
+ * Wallets the user can actually pick: EIP-6963-announced extensions (each with
+ * a working provider), the generic injected fallback only when nothing
+ * announced itself, and WalletConnect (QR / deep link) always last.
+ */
+function useWalletChoices(): Connector[] {
+  const { connectors } = useConnect();
+  const [choices, setChoices] = useState<Connector[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const available: Connector[] = [];
+      for (const c of connectors) {
+        if (c.type === "walletConnect") {
+          available.push(c);
+          continue;
+        }
+        if (await c.getProvider().catch(() => null)) available.push(c);
+      }
+      const announced = available.filter(
+        (c) => c.type !== "walletConnect" && c.id !== "injected"
+      );
+      const generic = available.filter((c) => c.id === "injected");
+      const wc = available.filter((c) => c.type === "walletConnect");
+      if (alive) setChoices([...(announced.length ? announced : generic), ...wc]);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [connectors]);
+
+  return choices;
+}
+
 export default function HomePage() {
   const { me, isLoading, invalidate } = useMe();
   const { t, lang, setLang } = useI18n();
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
-  const [accountType, setAccountType] = useState<"human" | "bot">("human");
   const [panel, setPanel] = useState<Panel>("none");
   const [clusterUsers, setClusterUsers] = useState<MapUser[]>([]);
   const [openChats, setOpenChats] = useState<number[]>([]);
@@ -57,6 +92,7 @@ export default function HomePage() {
   const { login, busy, error } = useSiweLogin(() => {
     invalidate();
   });
+  const wallets = useWalletChoices();
 
   const { data: mapData } = useQuery<{ users: MapUser[] }>({
     queryKey: ["mapUsers"],
@@ -314,30 +350,41 @@ export default function HomePage() {
               {t("login.tagline")}
             </p>
 
-            <div className="seg mt-6">
-              {(["human", "bot"] as const).map((k) => (
-                <button
-                  key={k}
-                  onClick={() => setAccountType(k)}
-                  className={`seg-item py-2.5 ${accountType === k ? "seg-item-active" : ""}`}
-                >
-                  {k === "human" ? t("login.human") : t("login.bot")}
-                </button>
-              ))}
-            </div>
-            {accountType === "bot" && (
-              <p className="mt-2 px-1 text-xs text-amber-400">{t("login.botHint")}</p>
-            )}
-
             {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
-            <button
-              onClick={() => login(accountType)}
-              disabled={busy}
-              className="btn-primary mt-6 w-full py-3.5 text-[15px]"
-            >
-              {busy ? t("login.waitingSig") : t("login.connect")}
-            </button>
+            <p className="mt-6 text-xs font-bold text-slate-400">
+              {t("login.pickWallet")}
+            </p>
+            <div className="mt-2 flex flex-col gap-2">
+              {wallets.map((c) => (
+                <button
+                  key={c.uid}
+                  onClick={() => login("human", c)}
+                  disabled={busy}
+                  className="glass pressable flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-slate-200 disabled:opacity-50"
+                >
+                  {c.icon ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.icon} alt="" className="h-5 w-5 rounded" />
+                  ) : (
+                    <span className="text-base leading-none">
+                      {c.type === "walletConnect" ? "🔗" : "👛"}
+                    </span>
+                  )}
+                  {c.name}
+                </button>
+              ))}
+              {wallets.length === 0 && (
+                <p className="text-xs leading-relaxed text-amber-400">
+                  {t("login.noWallet")}
+                </p>
+              )}
+            </div>
+            {busy && (
+              <p className="mt-3 text-center text-xs text-slate-400">
+                {t("login.waitingSig")}
+              </p>
+            )}
             <p className="mt-4 text-center text-[11px] text-slate-600">
               {t("login.chains")}
             </p>
